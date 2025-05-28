@@ -2,7 +2,6 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-# ——— Page config & styling ———
 st.set_page_config(
     page_title="ETF Bubble Dashboard",
     layout="wide",
@@ -26,7 +25,6 @@ st.markdown(
     """
 )
 
-# ——— Load & preprocess data ———
 @st.cache_data
 def load_data(aum_path, flow_path, funds_path):
     a = pd.read_csv(aum_path)
@@ -59,7 +57,6 @@ def load_data(aum_path, flow_path, funds_path):
 
 df = load_data('aum.csv','fund flow.csv','funds.csv')
 
-# ——— Filter widgets in two columns ———
 st.markdown("### Filters")
 col1, col2 = st.columns(2)
 
@@ -68,12 +65,11 @@ with col1:
     selected_cats = st.multiselect(
         "Category",
         options=all_cats,
-        default=[],  # default empty means no category filter
+        default=[],  
         help="Pick one or more categories (empty = no category filter unless secondary is chosen)"
     )
 
 with col2:
-    # If a category is selected, limit subcategory options to that subset; otherwise show all subcategories.
     if selected_cats:
         options = sorted(df[df['Category'].isin(selected_cats)]['Secondary Category'].unique())
     else:
@@ -81,27 +77,21 @@ with col2:
     selected_subcats = st.multiselect(
         "Secondary Category",
         options=options,
-        default=[],  # default empty means no subcategory filter
+        default=[],  
         help="Pick one or more sub-categories"
     )
 
-# ——— Apply filters ———
 if not selected_cats and not selected_subcats:
-    # No filter at all -> empty plot
     filtered = df.iloc[0:0]
 elif not selected_cats and selected_subcats:
-    # Only sub-category has been selected; filter on full df.
     filtered = df[df['Secondary Category'].isin(selected_subcats)]
 elif selected_cats and not selected_subcats:
-    # Only category has been selected
     filtered = df[df['Category'].isin(selected_cats)]
 else:
-    # Both filters provided: apply both
     filtered = df[df['Category'].isin(selected_cats) & df['Secondary Category'].isin(selected_subcats)]
 
 st.markdown(f"**Showing {len(filtered)} ETFs** after filters.")
 
-# ——— Bubble chart ———
 fig = px.scatter(
     filtered,
     x='TTM Net Flow',
@@ -126,7 +116,6 @@ fig.update_layout(
 
 st.plotly_chart(fig, use_container_width=True)
 
-# ——— Footer ———
 st.markdown("---")
 st.markdown(
     "Data sources: `aum.csv`, `fund flow.csv`, `funds.csv`  \n"
