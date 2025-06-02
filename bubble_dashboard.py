@@ -34,23 +34,33 @@ st.markdown(
     """
 )
 
+current_dir = Path(__file__).parent
+aum_csv_path = current_dir /"etf_data/aum.csv"
+flow_csv_path = current_dir / "etf_data/fund flow.csv"
+funds_csv_path = current_dir / "etf_data/funds.csv"
+perf_csv_path = current_dir / "etf_data/perf.csv"
+
+
 @st.cache_data
-def load_data(aum_path, flow_path, funds_path):
+def load_data(aum_path, flow_path, funds_path, perf_path):
+    # Load existing data
     a = pd.read_csv(aum_path)
     f = pd.read_csv(flow_path)
     m = pd.read_csv(funds_path)
+    p = pd.read_csv(perf_path)
 
     a['ETF'] = a['ETF'].str.replace(' CN Equity', '', regex=False)
     f['ETF'] = f['ETF'].str.replace(' CN Equity', '', regex=False)
+    p['ETF'] = p['ETF'].str.replace(' CN Equity', '', regex=False)
 
     df = (
-        a.merge(f, on='ETF', suffixes=('_aum','_flow'))
-         .merge(
-             m[['Ticker','Fund Name','Category','Secondary Category']],
-             left_on='ETF', right_on='Ticker', how='left'
-         )
+    a.merge(f, on='ETF', suffixes=('_aum', '_flow'))
+        .merge(
+            m[['Ticker', 'Fund Name', 'Category', 'Secondary Category']],
+            left_on='ETF', right_on='Ticker', how='left'
+        )
+        .merge(p, on='ETF', how='left', suffixes=('', '_perf'))
     )
-
     aum_col   = [c for c in df if c.endswith('_aum')][0]
     flow_cols = [c for c in df if c.endswith('_flow')][:12]
     ttm_cols = flow_cols[-12:]
@@ -64,15 +74,12 @@ def load_data(aum_path, flow_path, funds_path):
     df['Category']           = df['Category'].fillna('Unknown')
     df['Secondary Category'] = df['Secondary Category'].fillna('Unknown')
 
-    return df[['ETF','Fund Name','AUM','Monthly Flow','TTM Net Flow',
-               'Category','Secondary Category','Lightly Leveraged Indicator']]
+    perf_cols = [col for col in p.columns if col != 'ETF']
+    df['Latest Performance'] = df[perf_cols[0]]
 
-current_dir = Path(__file__).parent
-aum_csv_path = current_dir /"etf_data/aum.csv"
-flow_csv_path = current_dir / "etf_data/fund flow.csv"
-funds_csv_path = current_dir / "etf_data/funds.csv"
+    return df
 
-df = load_data(str(aum_csv_path), str(flow_csv_path), str(funds_csv_path))
+df = load_data(str(aum_csv_path), str(flow_csv_path), str(funds_csv_path), str(perf_csv_path))
 
 st.markdown("### Filters")
 col1, col2, col3 = st.columns([2, 2, 1])
@@ -286,3 +293,69 @@ else:
     )
 
 st.plotly_chart(fig, use_container_width=True)
+
+# Add Secondary Category Analysis Section
+st.markdown("### Secondary Category Analysis")
+
+# Category selector for the second chart
+selected_category_for_analysis = st.selectbox(
+    "Select Category for Analysis",
+    options=sorted(df['Category'].unique()),
+    key="category_analysis"
+)
+
+# Filter data for selected category
+category_data = df[df['Category'] == selected_category_for_analysis]
+category_data = category_data[["ETF","AUM","TTM Net Flow","Monthly Flow","Lightly Leveraged Indicator","Latest Performance","Secondary Category"]]
+category_data['Latest Performance'] = category_data['Latest Performance'].str.rstrip('%').astype(float) / 100
+# Aggregate by Secondary Category
+secondary_analysis = category_data.groupby('Secondary Category').agg({
+    'AUM': 'sum',
+    'Monthly Flow': 'sum',
+    'Latest Performance': 'mean'
+}).reset_index()
+
+# Calculate flow percentage
+total_aum = category_data['AUM'].sum()
+secondary_analysis['Flow Percentage'] = (secondary_analysis['Monthly Flow'] / total_aum) * 100
+
+secondary_fig = px.scatter(
+    secondary_analysis,
+    x='Latest Performance',
+    y='Flow Percentage',
+    size='AUM',
+    color='Secondary Category',
+    text='Secondary Category',
+    hover_data={
+        'AUM': ':,.0f',
+        'Flow Percentage': ':.2f',
+        'Latest Performance': ':.2%',
+    },
+    labels={
+        'Latest Performance': 'Average Performance (%)',
+        'Flow Percentage': 'Flow as % of Previous AUM',
+        'AUM': 'Total AUM ($)'
+    },
+    size_max=60,
+    template='plotly_white',
+    height=800
+)
+
+secondary_fig.update_traces(
+    textposition='top center',
+    textfont=dict(size=15, color='black')
+)
+
+secondary_fig.update_layout(
+    title={
+        'text': f"Flox v.s. Performance for {selected_category_for_analysis}",
+        'y': 0.95,
+        'x': 0.5,
+        'xanchor': 'center',
+        'yanchor': 'top'
+    },
+    margin=dict(l=40, r=40, t=60, b=40),
+    showlegend=False
+)
+
+st.plotly_chart(secondary_fig, use_container_width=True)
