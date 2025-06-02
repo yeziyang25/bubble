@@ -52,10 +52,10 @@ def load_data(aum_path, flow_path, funds_path):
     )
 
     aum_col   = [c for c in df if c.endswith('_aum')][0]
-    flow_cols = [c for c in df if c.endswith('_flow')]
-
-    df['TTM Net Flow'] = df[flow_cols].sum(axis=1)
-    df['Monthly Flow'] = df[flow_cols].iloc[:,0]
+    flow_cols = [c for c in df if c.endswith('_flow')][:12]
+    ttm_cols = flow_cols[-12:]
+    df['TTM Net Flow'] = df[ttm_cols].sum(axis=1) 
+    df['Monthly Flow'] = df[flow_cols[0]]
     df = df.rename(columns={aum_col: 'AUM'})
 
     df['Lightly Leveraged Indicator'] = df['Fund Name'].str.contains(r"1\.25|1\.33", na=False)
@@ -113,7 +113,6 @@ if selected_cats:
 if selected_subcats:
     filtered = filtered[filtered['Secondary Category'].isin(selected_subcats)]
 
-# Update showing condition to consider both category filters and leveraged filter
 is_showing_all = not (selected_cats or selected_subcats or show_leveraged_only)
 
 st.markdown("### Summary Statistics")
