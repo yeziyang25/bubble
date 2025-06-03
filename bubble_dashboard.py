@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 import numpy as np
-
+import re
 st.set_page_config(
     page_title="ETF Bubble Dashboard",
     layout="wide",
@@ -43,54 +43,137 @@ perf_csv_path = current_dir / "etf_data/perf.csv"
 
 @st.cache_data
 def load_data(aum_path, flow_path, funds_path, perf_path):
-    # Load existing data
-    a = pd.read_csv(aum_path)
-    f = pd.read_csv(flow_path)
-    m = pd.read_csv(funds_path)
-    p = pd.read_csv(perf_path)
-
-    a['ETF'] = a['ETF'].str.replace(' CN Equity', '', regex=False)
-    f['ETF'] = f['ETF'].str.replace(' CN Equity', '', regex=False)
-    p['ETF'] = p['ETF'].str.replace(' CN Equity', '', regex=False)
+    a = pd.read_csv(aum_path)    
+    f = pd.read_csv(flow_path)     
+    m = pd.read_csv(funds_path)    
+    p = pd.read_csv(perf_path)   
 
     for df in (a, f, p):
         df['ETF'] = (
-           df['ETF']
-          .str.replace(' CN Equity', '', regex=False)
-          .str.strip()           
-         )
+            df['ETF']
+            .astype(str)
+            .str.replace(' CN Equity', '', regex=False)
+            .str.strip()
+        )
 
-    df = (
-    a
-    .merge(f, on='ETF', suffixes=('_aum','_flow'))
-    .merge(
-        m[['Ticker','Fund Name','Category','Secondary Category','Delisting Date',"Indicator"]],
-        left_on='ETF', right_on='Ticker', how='left'
+    aum_date_cols = [c for c in a.columns if c != 'ETF']
+    aum_date_cols_sorted = sorted(aum_date_cols, reverse=True)
+    latest_col = aum_date_cols_sorted[0]
+    prev_col   = aum_date_cols_sorted[1] if len(aum_date_cols_sorted) > 1 else None
+
+    rename_map = {latest_col: 'AUM'}
+    if prev_col is not None:
+        rename_map[prev_col] = 'Prev AUM'
+    a = a.rename(columns=rename_map)
+
+    keep_aum = ['ETF', 'AUM']
+    if prev_col is not None:
+        keep_aum.append('Prev AUM')
+    a = a[keep_aum].copy()
+
+    a['AUM'] = pd.to_numeric(a['AUM'], errors='coerce')
+    if prev_col is not None:
+        a['Prev AUM'] = pd.to_numeric(a['Prev AUM'], errors='coerce')
+    else:
+        a['Prev AUM'] = np.nan
+
+    flow_date_cols = [c for c in f.columns if c != 'ETF']
+    flow_date_cols_sorted = sorted(flow_date_cols, reverse=True)
+    flow_cols = flow_date_cols_sorted[:12]  # up to 12 months
+    ttm_cols  = flow_cols
+
+    af = a.merge(f, on='ETF', how='left')
+
+    afm = af.merge(
+        m[['Ticker', 'Fund Name', 'Category', 'Secondary Category', 'Delisting Date', 'Indicator']],
+        left_on='ETF',
+        right_on='Ticker',
+        how='left'
     )
-    # .loc[lambda df: df['Delisting Date'] == 'Active']
-    .merge(p, on='ETF', how='left', suffixes=('','_perf'))
-   )
-    aum_col   = [c for c in df if c.endswith('_aum')][0]
-    flow_cols = [c for c in df if c.endswith('_flow')][:12]
-    ttm_cols = flow_cols[-12:]
-        
+
+    df = afm.merge(p, on='ETF', how='left', suffixes=('', '_perf'))
+
     for col in ttm_cols:
-        df[col] = pd.to_numeric(df[col], errors='coerce')
-    
+        df[col] = pd.to_numeric(df[col].astype(str), errors='coerce')
     df['TTM Net Flow'] = df[ttm_cols].sum(axis=1)
-    df['Monthly Flow'] = df[flow_cols[0]]
-    df = df.rename(columns={aum_col: 'AUM'})
+    df['Monthly Flow'] = pd.to_numeric(df[flow_cols[0]].astype(str), errors='coerce')
 
-    df['Lightly Leveraged Indicator'] = df['Fund Name'].str.contains(r"1\.25|1\.33", na=False)
-
-    df = df.dropna(subset=['AUM','Monthly Flow','TTM Net Flow'])
     df['Category']           = df['Category'].fillna('Unknown')
     df['Secondary Category'] = df['Secondary Category'].fillna('Unknown')
 
-    perf_cols = [col for col in p.columns if col != 'ETF']
-    df['Latest Performance'] = df[perf_cols[0]]
+    perf_cols = [c for c in p.columns if c != 'ETF']
+    df['Latest Performance'] = (
+        df[perf_cols[0]]
+        .astype(str)
+        .str.rstrip('%')
+        .replace('', np.nan)
+        .astype(float)
+        .div(100)
+    )
 
-    return df
+    df['Lightly Leveraged Indicator'] = df['Fund Name'].str.contains(r"1\.25|1\.33", na=False)
+
+    paired_rows = df[df['Indicator'] == 2].copy()
+    single_rows = df[df['Indicator'] != 2].copy()
+
+    def _combine_pair(group: pd.DataFrame) -> pd.Series:
+        base_mask = group['ETF'].str.endswith('/B', na=False)
+        if base_mask.any():
+            base = group[base_mask].iloc[0]
+        else:
+            no_slash_mask = ~group['ETF'].str.contains(r'/.', na=False)
+            if no_slash_mask.any():
+                base = group[no_slash_mask].iloc[0]
+            else:
+                base = group.iloc[0]
+
+        pair_key = re.sub(r'/.$', '', base['ETF'])
+
+        if group['ETF'].str.endswith('/U', na=False).any():
+            new_ticker = f"{pair_key}(U)"
+        else:
+            new_ticker = pair_key
+
+        return pd.Series({
+            'ETF': new_ticker,
+            'Fund Name': base['Fund Name'],
+            'Category': base['Category'],
+            'Secondary Category': base['Secondary Category'],
+            'Delisting Date': base['Delisting Date'],
+            'Indicator': base['Indicator'],
+            'AUM': base['AUM'],
+            'Prev AUM': base['Prev AUM'],
+            'Monthly Flow': base['Monthly Flow'],
+            'TTM Net Flow': base['TTM Net Flow'],
+            'Latest Performance': base['Latest Performance'],
+            'Lightly Leveraged Indicator': bool(base['Lightly Leveraged Indicator'])
+        })
+
+    if not paired_rows.empty:
+        paired_rows['PairKey'] = paired_rows['ETF'].str.replace(r'/.$', '', regex=True)
+        combined_pairs = (
+            paired_rows
+            .groupby('PairKey', dropna=False)
+            .apply(_combine_pair)
+            .reset_index(drop=True)
+        )
+    else:
+        combined_pairs = pd.DataFrame(columns=[
+            'ETF', 'Fund Name', 'Category', 'Secondary Category', 'Delisting Date',
+            'Indicator', 'AUM', 'Prev AUM', 'Monthly Flow', 'TTM Net Flow',
+            'Latest Performance', 'Lightly Leveraged Indicator'
+        ])
+
+    keep_cols = [
+        'ETF', 'Fund Name', 'Category', 'Secondary Category', 'Delisting Date',
+        'Indicator', 'AUM', 'Prev AUM', 'Monthly Flow', 'TTM Net Flow',
+        'Latest Performance', 'Lightly Leveraged Indicator'
+    ]
+    single_trimmed = single_rows[keep_cols].copy()
+    final_df = pd.concat([single_trimmed, combined_pairs], ignore_index=True)
+
+    return final_df
+
 
 df = load_data(str(aum_csv_path), str(flow_csv_path), str(funds_csv_path), str(perf_csv_path))
 
@@ -138,15 +221,16 @@ is_showing_all = not (selected_cats or selected_subcats or show_leveraged_only)
 st.markdown("### Summary Statistics")
 metric_cols = st.columns(4)
 with metric_cols[0]:
+    active_etfs = filtered[filtered['Delisting Date'] == 'Active']
     st.markdown(
         f"""<div class="metric-card">
             <h4>Number of ETFs</h4>
-            <h2>{len(filtered):,}</h2>
+            <h2>{len(active_etfs):,}</h2>
         </div>""", 
         unsafe_allow_html=True
     )
 with metric_cols[1]:
-    effective_aum = np.where(filtered['Indicator'] == 2, filtered['AUM']/2, filtered['AUM']).sum()
+    effective_aum = filtered['AUM'].sum()
     st.markdown(
         f"""<div class="metric-card">
             <h4>Total AUM</h4>
@@ -155,7 +239,7 @@ with metric_cols[1]:
         unsafe_allow_html=True
     )
 with metric_cols[2]:
-    effective_monthly_flow = np.where(filtered['Indicator'] == 2, filtered['Monthly Flow']/2, filtered['Monthly Flow']).sum()
+    effective_monthly_flow = filtered['Monthly Flow'].sum()
     st.markdown(
         f"""<div class="metric-card">
             <h4>Total Monthly Flow</h4>
@@ -164,7 +248,7 @@ with metric_cols[2]:
         unsafe_allow_html=True
     )
 with metric_cols[3]:
-    effective_ttm_flow = np.where(filtered['Indicator'] == 2, filtered['TTM Net Flow']/2, filtered['TTM Net Flow']).sum()
+    effective_ttm_flow = filtered['TTM Net Flow'].sum()
     st.markdown(
         f"""<div class="metric-card">
             <h4>Total TTM Flow</h4>
@@ -176,16 +260,12 @@ with metric_cols[3]:
 st.markdown("### ETF Flows Bubble Chart")
 
 def create_figure(data, show_text_labels=False):
-    data = data.copy()
-    data['Eff_AUM'] = np.where(data['Indicator'] == 2, data['AUM'] / 2, data['AUM'])
-    data['Eff_MonthlyFlow'] = np.where(data['Indicator'] == 2, data['Monthly Flow'] / 2, data['Monthly Flow'])
-    data['Eff_TTMNetFlow'] = np.where(data['Indicator'] == 2, data['TTM Net Flow'] / 2, data['TTM Net Flow'])
     
     fig = px.scatter(
         data,
-        x='Eff_TTMNetFlow',    
-        y='Eff_MonthlyFlow',  
-        size='Eff_AUM',       
+        x='TTM Net Flow',    
+        y='Monthly Flow',  
+        size='AUM',       
         color='Category',
         text='ETF' if show_text_labels else None,
         hover_name='ETF',
@@ -198,8 +278,8 @@ def create_figure(data, show_text_labels=False):
             'Secondary Category': True,
         },
         labels={
-            'Eff_TTMNetFlow': 'TTM Net Flows ($)',
-            'Eff_MonthlyFlow': 'Monthly Flows ($)',
+            'TTM Net Flow': 'TTM Net Flows ($)',
+            'Monthly Flow': 'Monthly Flows ($)',
             'AUM': 'Assets Under Management ($)'
         },
         size_max=80,
@@ -235,15 +315,12 @@ if is_showing_all:
     fig = create_figure(filtered, show_text_labels=False)
 elif show_leveraged_only:
     leveraged_data = filtered.copy()
-    leveraged_data['Eff_AUM'] = np.where(leveraged_data['Indicator'] == 2, leveraged_data['AUM'] / 2, leveraged_data['AUM'])
-    leveraged_data['Eff_MonthlyFlow'] = np.where(leveraged_data['Indicator'] == 2, leveraged_data['Monthly Flow'] / 2, leveraged_data['Monthly Flow'])
-    leveraged_data['Eff_TTMNetFlow'] = np.where(leveraged_data['Indicator'] == 2, leveraged_data['TTM Net Flow'] / 2, leveraged_data['TTM Net Flow'])
     
     fig = px.scatter(
         leveraged_data,
-        x='Eff_TTMNetFlow',    
-        y='Eff_MonthlyFlow',   
-        size='Eff_AUM',        
+        x='TTM Net Flow',    
+        y='Monthly Flow',   
+        size='AUM',        
         color='ETF',
         text='ETF',
         hover_name='ETF',
@@ -256,8 +333,8 @@ elif show_leveraged_only:
             'Secondary Category': True,
         },
         labels={
-            'Eff_TTMNetFlow': 'TTM Net Flows ($)',
-            'Eff_MonthlyFlow': 'Monthly Flows ($)',
+            'TTM Net Flow': 'TTM Net Flows ($)',
+            'Monthly Flow': 'Monthly Flows ($)',
             'AUM': 'Assets Under Management ($)'
         },
         size_max=80,
@@ -320,40 +397,85 @@ st.plotly_chart(fig, use_container_width=True)
 
 st.markdown("### Secondary Category Analysis")
 
-selected_category_for_analysis = st.selectbox(
-    "Select Category for Analysis",
-    options=sorted(df['Category'].unique()),
-    key="category_analysis"
+# 1. Build two multiselect widgets:
+all_categories     = sorted(df['Category'].unique())
+all_subcategories  = sorted(df['Secondary Category'].unique())
+
+selected_categories    = st.multiselect(
+    "Select Category(s) for Analysis",
+    options=all_categories,
+    default=[],
+    help="Pick one or more primary Categories (leave empty to include all).",
+    key="cat_analysis"
 )
 
-category_data = df[df['Category'] == selected_category_for_analysis]
-category_data = category_data[["ETF","AUM","TTM Net Flow","Monthly Flow","Lightly Leveraged Indicator","Latest Performance","Secondary Category"]]
-category_data['Latest Performance'] = category_data['Latest Performance'].str.rstrip('%').astype(float) / 100
-secondary_analysis = category_data.groupby('Secondary Category').agg({
-    'AUM': 'sum',
-    'Monthly Flow': 'sum',
-    'Latest Performance': 'mean'
-}).reset_index()
+selected_subcategories = st.multiselect(
+    "Select Secondary Category(s) for Analysis",
+    options=all_subcategories,
+    default=[],
+    help="Pick one or more secondary Categories (leave empty to include all).",
+    key="subcat_analysis"
+)
 
-total_aum = category_data['AUM'].sum()
-secondary_analysis['Flow Percentage'] = (secondary_analysis['Monthly Flow'] / total_aum) * 100
+# 2. Filter the DataFrame based on those selections:
+analysis_df = df.copy()
 
+if selected_categories:
+    analysis_df = analysis_df[analysis_df['Category'].isin(selected_categories)]
+
+if selected_subcategories:
+    analysis_df = analysis_df[analysis_df['Secondary Category'].isin(selected_subcategories)]
+
+# 3. Decide whether to group by 'Category' or 'Secondary Category':
+#    If the user picked any secondary categories, we want to group by 'Category';
+#    otherwise we group by 'Secondary Category'.
+if selected_subcategories:
+    group_col = 'Category'
+else:
+    group_col = 'Secondary Category'
+
+# 4. Compute aggregates:
+#    • Sum AUM and Prev AUM per group
+#    • Sum Monthly Flow per group
+#    • Take mean of Latest Performance per group
+#
+#    After that, compute:
+#      Flow Percentage = (sum of Monthly Flow for group) / (sum of Prev AUM for group) * 100
+agg = (
+    analysis_df
+    .groupby(group_col)
+    .agg({
+        'AUM':       'sum',
+        'Prev AUM':  'sum',
+        'Monthly Flow':     'sum',
+        'Latest Performance': 'mean'
+    })
+    .reset_index()
+)
+
+# 5. Compute Flow Percentage and convert Latest Performance to percent:
+agg['Flow Percentage']     = (agg['Monthly Flow'] / agg['Prev AUM']) * 100
+agg['Latest Performance'] *= 100
+
+# 6. Build the bubble chart:
 secondary_fig = px.scatter(
-    secondary_analysis,
+    agg,
     x='Latest Performance',
     y='Flow Percentage',
     size='AUM',
-    color='Secondary Category',
-    text='Secondary Category',
+    color=group_col,
+    text=group_col,
     hover_data={
-        'AUM': ':,.0f',
-        'Flow Percentage': ':.2f',
-        'Latest Performance': ':.2%',
+        'AUM':               ':,.0f',
+        'Prev AUM':          ':,.0f',
+        'Monthly Flow':      ':,.0f',
+        'Flow Percentage':   ':.2f',
+        'Latest Performance':':.2f'
     },
     labels={
         'Latest Performance': 'Average Performance (%)',
-        'Flow Percentage': 'Flow as % of Previous AUM',
-        'AUM': 'Total AUM ($)'
+        'Flow Percentage':    'Flow as % of Previous AUM',
+        'AUM':                'Total AUM ($)'
     },
     size_max=60,
     template='plotly_white',
@@ -367,7 +489,7 @@ secondary_fig.update_traces(
 
 secondary_fig.update_layout(
     title={
-        'text': f"Flow v.s. Performance for {selected_category_for_analysis}",
+        'text': f"Flow vs. Performance grouped by {group_col}",
         'y': 0.95,
         'x': 0.5,
         'xanchor': 'center',
