@@ -1,4 +1,4 @@
-Ticker,Fund Name,Delisting Date,Unnamed: 3,ISIN,CUSIP,Mgmt Fee,MER (%),Inception,Structure,Category,Secondary Category,Unnamed: 12,ETF Provider
+Ticker,Fund Name,Delisting Date,Indicator,ISIN,CUSIP,Mgmt Fee,MER (%),Inception,Structure,Category,Secondary Category,Unnamed: 12,ETF Provider
 XIU,iShares S&P/TSX 60 Index ETF,Active,1,CA46428D1087,46428D108,0.15,0.18,1999-09-28,ETF,CANADA BROAD/LARGE CAP EQUITY,Cap-Weighted: Broad/Large,, iShares 
 XBB,iShares Core Canadian Universe Bond Index ETF,Active,1,CA46430T1093,46430T109,0.09,0.1,2000-11-20,ETF,CANADA AGGREGATE FIXED INCOME,Broad/Mixed,, iShares 
 XSB,iShares Core Canadian Short Term Bond Index ETF,Active,1,CA46431A1093,46431A109,0.09,0.1,2000-11-20,ETF,CANADA AGGREGATE FIXED INCOME,Short Term,, iShares 
@@ -1895,3 +1895,41 @@ UBNK,Global X Equal Weight U.S. Banks Index ETF,Active,1,CA37965P1099,37965P109,
 REIT,Global X Equal Weight Canadian REITs Index ETF,Active,1,CA3799521040,379952104,0.25,,2025-04-30,,CANADA SECTOR EQUITY,Real Estate,,Global X Investments Canada Inc
 HBIX,Harvest Bitcoin Enhanced Income ETF,Active,1,CA4179171018,417917101,0.65,,2025-04-30,,Lightly Leveraged,Bitcoin,,Harvest Portfolios Group Inc.
 HBTE,Harvest Bitcoin Leaders Enhanced Income ETF,Active,1,CA4179181090,417918109,0.75,,2025-04-30,,Lightly Leveraged,Blockchain Technology,,Harvest Portfolios Group Inc.
+MTBB,Mackenzie Target 2029 North American IG Corporate Bond ETF,Active,1,CA5545401047,554540104,0.2,,2025-05-01,,GLOBAL FIXED INCOME,Target Maturity,,Mackenzie Investments
+MTBA,Mackenzie Target 2027 North American IG Corporate Bond ETF,Active,1,CA5545541057,554554105,0.2,,2025-05-01,,GLOBAL FIXED INCOME,Target Maturity,,Mackenzie Investments
+MAAA,Mackenzie AAA CLO ETF,Active,1,CA5545381082,554538108,0.18,,2025-05-01,,U.S. INVEST. GRADE CORPORATE FIXED INCOME,CLO,,Mackenzie Investments
+ZAAA,BMO AAA CLO ETF,Active,1,CA05614V1085,05614V108,0.23,,2025-05-02,,U.S. INVEST. GRADE CORPORATE FIXED INCOME,CLO,,BMO Asset Management Inc
+ZAAA/F,BMO AAA CLO ETF - CAD Hedged,Active,1,CA05614V2075,05614V207,0.23,,2025-05-02,,U.S. INVEST. GRADE CORPORATE FIXED INCOME,CLO,,BMO Asset Management Inc
+ZAAA/U,BMO AAA CLO ETF - USD Units,Active,1,CA05614V3065,05614V306,0.23,,2025-05-02,,U.S. INVEST. GRADE CORPORATE FIXED INCOME,CLO,,BMO Asset Management Inc
+INCM/B,Accelerate Diversified Credit Income Fund - CAD Hedged,Active,1,CA00436Y2087,00436Y208,0.75,,2025-05-06,,HIGH YIELDFIXED INCOME,HY / Loan,,Accelerate Financial Technologies Inc
+CUSD/U,CIBC USD Premium Cash Management ETF,Active,1,CA12575J1084,12575J108,0.12,,2025-05-14,,U.S. CASH ALTERNATIVE,HISA,,CIBC Asset Management Inc
+CCAD,CIBC Premium Cash Management ETF,Active,1,CA12555S1020,12555S102,0.12,,2025-05-14,,CANADIAN CASH ALTERNATIVE,HISA,,CIBC Asset Management Inc
+CALB,CIBC Canadian Government Long-Term Bond ETF,Active,1,CA17164M1077,17164M107,0.2,,2025-05-14,,CANADA GOVERNMENT FIXED INCOME,Long Term,,CIBC Asset Management Inc
+BTCO/B,Purpose Core Bitcoin ETF - Unhedged,Active,1,CA74641X2068,74641X206,0.29,,2025-05-15,,CRYPTO-ASSET,Bitcoin,,Purpose Investments Inc.
+BTCO/U,Purpose Core Bitcoin ETF - USD Units,Active,1,CA74641X3058,74641X305,0.29,,2025-05-15,,CRYPTO-ASSET,Bitcoin,,Purpose Investments Inc.
+ETHO/B,Purpose Core Ether ETF - Unhedged,Active,1,CA74642Y2033,74642Y203,0.29,,2025-05-15,,CRYPTO-ASSET,Ethereum,,Purpose Investments Inc.
+ETHO/U,Purpose Core Ether ETF - USD Units,Active,1,CA74642Y3023,74642Y302,0.29,,2025-05-15,,CRYPTO-ASSET,Ethereum,,Purpose Investments Inc.
+MFUN,Manulife Fundamental Equity Fund,Active,1,CA56503H1064,56503H106,0.71,,2025-05-21,,CANADA BROAD/LARGE CAP EQUITY,Pure Active,,Manulife Investment Management
+MCOR,Manulife Core Plus Bond Fund,Active,1,CA56503L1076,56503L107,0.45,,2025-05-21,,CANADA AGGREGATE FIXED INCOME,Broad/Mixed,,Manulife Investment Management
+MDIF,Manulife Dividend Income Fund ,Active,1,CA56503W1032,56503W103,0.83,,2025-05-21,,Global Equity,Dividend/Income,,Manulife Investment Management
+MCAN,Manulife Canadian Equity Class,Active,1,CA56504Q1054,56504Q105,0.68,,2025-05-21,,CANADA BROAD/LARGE CAP EQUITY,Pure Active,,Manulife Investment Management
+CCLO,CIBC Income Advantage Fund,Active,1,CA17164J1049,1716J104,0.3,,2025-05-21,,U.S. INVEST. GRADE CORPORATE FIXED INCOME,CLO,,CIBC Asset Management Inc
+QQQU,MegaLong (3X) NASDAQ-100 Daily Leveraged Alternative ETF,Active,1,CA54315B2012,54315B201,1.55,,2025-05-23,,LEVERAGED LONG EQUITY,U.S.,,LongPoint Asset Management
+QQQD,MegaLong (-3X) NASDAQ-100 Daily Leveraged Alternative ETF,Active,1,CA54315B8050,54315B805,1.55,,2025-05-23,,LEVERAGED INVERSE EQUITY,U.S.,,LongPoint Asset Management
+SPYU,MegaLong (3X) S&P 500 Daily Leveraged Alternative ETF,Active,1,CA54315B3002,54315B300,1.55,,2025-05-23,,LEVERAGED LONG EQUITY,U.S.,,LongPoint Asset Management
+SPYD,MegaLong (-3X) S&P 500 Daily Leveraged Alternative ETF,Active,1,CA54315B8886,54315B888,1.55,,2025-05-23,,LEVERAGED INVERSE EQUITY,U.S.,,LongPoint Asset Management
+SOXU,MegaLong (3X) US Semiconductors Daily Leveraged Alternative ETF,Active,1,CA54315B4091,54315B409,1.55,,2025-05-23,,LEVERAGED LONG EQUITY,U.S.,,LongPoint Asset Management
+SOXD,MegaLong (-3X) US Semiconductors Daily Leveraged Alternative ETF,Active,1,CA54315B8704,54315B870,1.55,,2025-05-23,,LEVERAGED INVERSE EQUITY,U.S.,,LongPoint Asset Management
+ZBCB,BMO Canadian Core Plus US Balanced ETF,Active,1,CA05594D1024,05594D102,0.4,,2025-05-27,,ASSET ALLOCATION PORTFOLIO,Balanced,,BMO Asset Management Inc
+ZBEU,BMO US Equity Focused ETF,Active,1,CA05614W1068,05614W106,0.45,,2025-05-27,,U.S.EQUITY - CURRENCY NON-HEDGED,Cap-Weighted: Broad/Large,,BMO Asset Management Inc
+ZBEU/F,BMO US Equity Focused ETF - CAD Hedged,Active,1,CA05614W2058,05614W205,0.45,,2025-05-27,,U.S.EQUITY - CURRENCY-HEDGED,Cap-Weighted: Broad/Large,,BMO Asset Management Inc
+ZBDU,BMO US Dividend Growth ETF,Active,1,CA05614Y1025,05614Y102,0.45,,2025-05-27,,U.S.EQUITY - CURRENCY NON-HEDGED,Dividend/Income,,BMO Asset Management Inc
+ZBDU/F,BMO US Dividend Growth ETF - CAD Hedged,Active,1,CA05614Y2015,05614Y201,0.45,,2025-05-27,,U.S.EQUITY - CURRENCY-HEDGED,Dividend/Income,,BMO Asset Management Inc
+ZBVU,BMO US Large Cap Disciplined Value ETF,Active,1,CA0969371073,96937107,0.45,,2025-05-27,,U.S.EQUITY - CURRENCY NON-HEDGED,Cap-Weighted: Broad/Large,,BMO Asset Management Inc
+ZBEC,BMO Canadian Equity Plus ETF,Active,1,CA05615C1095,05615C109,0.45,,2025-05-27,,REGIONALEQUITY,North America,,BMO Asset Management Inc
+RCLO,RBC AAA CLO ETF - CAD Hedged,Active,1,CA74937F1099,74937F109,0.29,,2025-05-28,,U.S. INVEST. GRADE CORPORATE FIXED INCOME,CLO,,RBC Global Asset Management Inc.
+TLTD,MegaShort (-3X) 20+ Year US Treasury Daily Leveraged Alternative ETF,Active,1,CA54315B8621,54315B862,1.55,,2025-05-28,,LEVERAGED INVERSE FIXED INCOME,U.S.,,LongPoint Asset Management
+TLTU,MegaLong (3X) 20+ Year US Treasury Daily Leveraged Alternative ETF,Active,1,CA54315B5080,54315B508,1.55,,2025-05-28,,LEVERAGED LONG FIXED INCOME,U.S.,,LongPoint Asset Management
+CGMU,MegaLong (3X) Canadian Gold Miners Daily Leveraged Alternative ETF,Active,1,CA54315B7060,54315B706,1.55,,2025-05-28,,LEVERAGED LONG EQUITY,Canada,,LongPoint Asset Management
+CGMD,MegaShort (-3X) Canadian Gold Miners Daily Leveraged Alternative ETF,Active,1,CA54315B8548,54315B854,1.55,,2025-05-28,,LEVERAGED INVERSE EQUITY,Canada,,LongPoint Asset Management
+BNKU,MegaLong (3X) Canadian Banks Daily Leveraged Alternative ETF,Active,1,CA54315B6070,54315B607,1.55,,2025-05-28,,LEVERAGED LONG EQUITY,Canada,,LongPoint Asset Management
