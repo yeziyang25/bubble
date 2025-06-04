@@ -4,6 +4,9 @@ import plotly.express as px
 import streamlit as st
 import numpy as np
 import re
+import os
+import requests
+from io import BytesIO
 st.set_page_config(
     page_title="ETF Bubble Dashboard",
     layout="wide",
@@ -34,21 +37,32 @@ st.markdown(
     """
 )
 
-current_dir = Path(__file__).parent
-aum_csv_path = current_dir /"etf_data/aum.csv"
-flow_csv_path = current_dir / "etf_data/fund flow.csv"
-funds_csv_path = current_dir / "etf_data/funds.csv"
-perf_csv_path = current_dir / "etf_data/perf.csv"
 
+
+current_dir = Path(__file__).parent
+csv_path = current_dir /"etf_data/classification - data.xlsx"
 
 @st.cache_data
-def load_data(aum_path, flow_path, funds_path, perf_path):
-    a = pd.read_csv(aum_path)    
-    f = pd.read_csv(flow_path)     
-    m = pd.read_csv(funds_path)    
-    p = pd.read_csv(perf_path)   
+def load_data(xlsx_path: str) -> pd.DataFrame:
 
-    for df in (a, f, p):
+
+
+    funds_df = pd.read_excel(
+        xlsx_path, sheet_name="consolidated_10032022"
+    )
+    aum_df   = pd.read_excel(xlsx_path, sheet_name="aum")
+    flow_df  = pd.read_excel(xlsx_path, sheet_name="fund_flow")
+    perf_df  = pd.read_excel(xlsx_path, sheet_name="performance")
+
+
+    def _col_to_str(col):
+        return str(col)
+
+    aum_df.columns  = aum_df.columns.map(_col_to_str)
+    flow_df.columns = flow_df.columns.map(_col_to_str)
+    perf_df.columns = perf_df.columns.map(_col_to_str)
+
+    for df in (aum_df, flow_df, perf_df):
         df['ETF'] = (
             df['ETF']
             .astype(str)
@@ -56,7 +70,8 @@ def load_data(aum_path, flow_path, funds_path, perf_path):
             .str.strip()
         )
 
-    aum_date_cols = [c for c in a.columns if c != 'ETF']
+    aum_date_cols = [c for c in aum_df.columns if c != 'ETF']
+
     aum_date_cols_sorted = sorted(aum_date_cols, reverse=True)
     latest_col = aum_date_cols_sorted[0]
     prev_col   = aum_date_cols_sorted[1] if len(aum_date_cols_sorted) > 1 else None
@@ -64,53 +79,53 @@ def load_data(aum_path, flow_path, funds_path, perf_path):
     rename_map = {latest_col: 'AUM'}
     if prev_col is not None:
         rename_map[prev_col] = 'Prev AUM'
-    a = a.rename(columns=rename_map)
+    aum_df = aum_df.rename(columns=rename_map)
 
     keep_aum = ['ETF', 'AUM']
     if prev_col is not None:
         keep_aum.append('Prev AUM')
-    a = a[keep_aum].copy()
+    aum_df = aum_df[keep_aum].copy()
 
-    a['AUM'] = pd.to_numeric(a['AUM'], errors='coerce')
+    aum_df['AUM'] = pd.to_numeric(aum_df['AUM'], errors='coerce')
     if prev_col is not None:
-        a['Prev AUM'] = pd.to_numeric(a['Prev AUM'], errors='coerce')
+        aum_df['Prev AUM'] = pd.to_numeric(aum_df['Prev AUM'], errors='coerce')
     else:
-        a['Prev AUM'] = np.nan
+        aum_df['Prev AUM'] = np.nan
 
-    flow_date_cols = [c for c in f.columns if c != 'ETF']
+    flow_date_cols = [c for c in flow_df.columns if c != 'ETF']
     flow_date_cols_sorted = sorted(flow_date_cols, reverse=True)
-    flow_cols = flow_date_cols_sorted[:12]  # up to 12 months
+    flow_cols = flow_date_cols_sorted[:12]
     ttm_cols  = flow_cols
 
-    af = a.merge(f, on='ETF', how='left')
+    af = aum_df.merge(flow_df, on='ETF', how='left')
 
     afm = af.merge(
-        m[['Ticker', 'Fund Name', 'Category', 'Secondary Category', 'Delisting Date', 'Indicator']],
+        funds_df[['Ticker', 'Fund Name', 'Category', 'Secondary Category', 'Delisting Date', 'Indicator']],
         left_on='ETF',
         right_on='Ticker',
         how='left'
     )
 
-    df = afm.merge(p, on='ETF', how='left', suffixes=('', '_perf'))
+    df = afm.merge(perf_df, on='ETF', how='left', suffixes=('', '_perf'))
 
     for col in ttm_cols:
         df[col] = pd.to_numeric(df[col].astype(str), errors='coerce')
-    df['TTM Net Flow'] = df[ttm_cols].sum(axis=1)
-    df['Monthly Flow'] = pd.to_numeric(df[flow_cols[0]].astype(str), errors='coerce')
+    df['TTM Net Flow']   = df[ttm_cols].sum(axis=1)
+    df['Monthly Flow']   = pd.to_numeric(df[flow_cols[0]].astype(str), errors='coerce')
 
     df['Category']           = df['Category'].fillna('Unknown')
     df['Secondary Category'] = df['Secondary Category'].fillna('Unknown')
 
-    perf_cols = [c for c in p.columns if c != 'ETF']
-    df['Latest Performance'] = (
-        df[perf_cols[0]]
-        .astype(str)
-        .str.rstrip('%')
-        .replace('', np.nan)
-        .astype(float)
-        .div(100)
-    )
+    perf_cols      = [c for c in perf_df.columns if c != 'ETF']
+    perf_cols_sorted = sorted(perf_cols, reverse=True)
+    latest_perf_col = perf_cols_sorted[0]
 
+    perf_df['Latest Performance'] = perf_df[latest_perf_col].astype(float)
+    df = df.merge(
+        perf_df[['ETF','Latest Performance']],
+        on='ETF',
+        how='left'
+    )
     df['Lightly Leveraged Indicator'] = df['Fund Name'].str.contains(r"1\.25|1\.33", na=False)
 
     paired_rows = df[df['Indicator'] == 2].copy()
@@ -151,6 +166,7 @@ def load_data(aum_path, flow_path, funds_path, perf_path):
 
     if not paired_rows.empty:
         paired_rows['PairKey'] = paired_rows['ETF'].str.replace(r'/.$', '', regex=True)
+
         combined_pairs = (
             paired_rows
             .groupby('PairKey', dropna=False)
@@ -175,7 +191,7 @@ def load_data(aum_path, flow_path, funds_path, perf_path):
     return final_df
 
 
-df = load_data(str(aum_csv_path), str(flow_csv_path), str(funds_csv_path), str(perf_csv_path))
+df = load_data(csv_path)
 
 st.markdown("### Filters")
 col1, col2, col3 = st.columns([2, 2, 1])
@@ -397,7 +413,6 @@ st.plotly_chart(fig, use_container_width=True)
 
 st.markdown("### Secondary Category Analysis")
 
-# 1. Build two multiselect widgets:
 all_categories     = sorted(df['Category'].unique())
 all_subcategories  = sorted(df['Secondary Category'].unique())
 
@@ -417,7 +432,6 @@ selected_subcategories = st.multiselect(
     key="subcat_analysis"
 )
 
-# 2. Filter the DataFrame based on those selections:
 analysis_df = df.copy()
 
 if selected_categories:
@@ -426,21 +440,12 @@ if selected_categories:
 if selected_subcategories:
     analysis_df = analysis_df[analysis_df['Secondary Category'].isin(selected_subcategories)]
 
-# 3. Decide whether to group by 'Category' or 'Secondary Category':
-#    If the user picked any secondary categories, we want to group by 'Category';
-#    otherwise we group by 'Secondary Category'.
+
 if selected_subcategories:
     group_col = 'Category'
 else:
     group_col = 'Secondary Category'
 
-# 4. Compute aggregates:
-#    • Sum AUM and Prev AUM per group
-#    • Sum Monthly Flow per group
-#    • Take mean of Latest Performance per group
-#
-#    After that, compute:
-#      Flow Percentage = (sum of Monthly Flow for group) / (sum of Prev AUM for group) * 100
 agg = (
     analysis_df
     .groupby(group_col)
@@ -453,11 +458,9 @@ agg = (
     .reset_index()
 )
 
-# 5. Compute Flow Percentage and convert Latest Performance to percent:
 agg['Flow Percentage']     = (agg['Monthly Flow'] / agg['Prev AUM']) * 100
 agg['Latest Performance'] *= 100
 
-# 6. Build the bubble chart:
 secondary_fig = px.scatter(
     agg,
     x='Latest Performance',
