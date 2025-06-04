@@ -257,7 +257,7 @@ with metric_cols[1]:
     st.markdown(
         f"""<div class="metric-card">
             <h4>Total AUM</h4>
-            <h2>${effective_aum:,.0f}</h2>
+            <h2>${effective_aum/1e6:,.1f}M</h2>
         </div>""",
         unsafe_allow_html=True
     )
@@ -267,7 +267,7 @@ with metric_cols[2]:
     st.markdown(
         f"""<div class="metric-card">
             <h4>Total Monthly Flow</h4>
-            <h2>${effective_monthly_flow:,.0f}</h2>
+            <h2>${effective_monthly_flow/1e6:,.1f}M</h2>
         </div>""",
         unsafe_allow_html=True
     )
@@ -277,7 +277,7 @@ with metric_cols[3]:
     st.markdown(
         f"""<div class="metric-card">
             <h4>Total TTM Flow</h4>
-            <h2>${effective_ttm_flow:,.0f}</h2>
+            <h2>${effective_ttm_flow/1e6:,.1f}M</h2>
         </div>""",
         unsafe_allow_html=True
     )
@@ -287,7 +287,7 @@ with metric_cols[4]:
     st.markdown(
         f"""<div class="metric-card">
             <h4>Total YTD Flow</h4>
-            <h2>${effective_ytd_flow:,.0f}</h2>
+            <h2>${effective_ytd_flow/1e6:,.1f}M</h2>
         </div>""",
         unsafe_allow_html=True
     )
