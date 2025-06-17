@@ -500,7 +500,9 @@ secondary_fig = px.scatter(
     },
     size_max=60,
     template='plotly_white',
-    height=800
+    width=1000,    
+    height=800 ,  
+
 )
 
 secondary_fig.update_traces(
@@ -521,3 +523,13 @@ secondary_fig.update_layout(
 )
 
 st.plotly_chart(secondary_fig, use_container_width=True)
+
+# Export filtered data as CSV for download
+csv_data = filtered.to_csv(index=False).encode("utf-8")
+st.markdown("### Export Data")
+st.download_button(
+    label="Download Filtered Dataset as CSV",
+    data=csv_data,
+    file_name="filtered_dataset.csv",
+    mime="text/csv"
+)
