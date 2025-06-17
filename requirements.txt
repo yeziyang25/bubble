@@ -3,4 +3,3 @@ plotly
 streamlit
 openpyxl
 requests
-BytesIO
