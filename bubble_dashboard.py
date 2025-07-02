@@ -238,7 +238,8 @@ if selected_subcats:
     filtered = filtered[filtered['Secondary Category'].isin(selected_subcats)]
 
 is_showing_all = not (selected_cats or selected_subcats or show_leveraged_only)
-
+filtered = filtered.copy()
+filtered['AUM'] = filtered['AUM'].fillna(0)
 st.markdown("### Summary Statistics")
 metric_cols = st.columns(5)
 
