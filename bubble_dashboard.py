@@ -6,6 +6,8 @@ import numpy as np
 import re
 import requests
 from io import BytesIO
+from datetime import datetime
+
 st.set_page_config(
     page_title="ETF Bubble Dashboard",
     layout="wide",
@@ -31,18 +33,16 @@ st.markdown(
 st.title("📊 ETF Bubble Chart Dashboard")
 st.markdown(
     """
-    • **Step 1:** pick one or more *Category* values below.  
-    • **Step 2:** then pick any relevant *Secondary Category* values.  
+    • **Step 1:** pick a *Date* for analysis.
+    • **Step 2:** pick one or more *Category* values below.  
+    • **Step 3:** then pick any relevant *Secondary Category* values.  
     """
 )
 
 onedrive_url = "https://globalxcanada-my.sharepoint.com/:x:/g/personal/eden_ye_globalx_ca/Eas53aR4lPlDn0ZlNHgX4ZABPDpH1Ign2mH4NGcJ0Hb80w?download=1"
 
-# current_dir = Path(__file__).parent
-# csv_path = current_dir /"etf_data/classification - data.xlsx"
-
 @st.cache_data
-def load_data(xlsx_path: str) -> pd.DataFrame:
+def load_raw_data(xlsx_path: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     resp = requests.get(xlsx_path)
     resp.raise_for_status()
     excel_buffer = BytesIO(resp.content)
@@ -52,9 +52,11 @@ def load_data(xlsx_path: str) -> pd.DataFrame:
     flow_df  = pd.read_excel(excel_buffer, engine="openpyxl", sheet_name="fund_flow")
     perf_df  = pd.read_excel(excel_buffer, engine="openpyxl", sheet_name="performance")
 
-    
     def _col_to_str(col):
+        if isinstance(col, datetime):
+            return col.strftime('%Y-%m-%d')
         return str(col)
+
     aum_df.columns   = aum_df.columns.map(_col_to_str)
     flow_df.columns  = flow_df.columns.map(_col_to_str)
     perf_df.columns  = perf_df.columns.map(_col_to_str)
@@ -66,72 +68,101 @@ def load_data(xlsx_path: str) -> pd.DataFrame:
             .str.replace(' CN Equity', '', regex=False)
             .str.strip()
         )
+    return funds_df, aum_df, flow_df, perf_df
 
+def process_data_for_date(selected_date_str: str, funds_df: pd.DataFrame, aum_df: pd.DataFrame, flow_df: pd.DataFrame, perf_df: pd.DataFrame) -> pd.DataFrame:
+    selected_date = pd.to_datetime(selected_date_str)
+    
+    aum_df = aum_df.copy()
+    flow_df = flow_df.copy()
+    perf_df = perf_df.copy()
+
+    # AUM processing
     aum_date_cols = [c for c in aum_df.columns if c != 'ETF']
-    aum_date_cols_sorted = sorted(aum_date_cols, reverse=True)
-    latest_col = aum_date_cols_sorted[0]
-    prev_col   = aum_date_cols_sorted[1] if len(aum_date_cols_sorted) > 1 else None
+    aum_date_cols_dt = pd.to_datetime(aum_date_cols, errors='coerce')
+    valid_aum_dates = sorted([d for d in aum_date_cols_dt if pd.notna(d) and d <= selected_date], reverse=True)
+    
+    latest_col = valid_aum_dates[0].strftime('%Y-%m-%d') if valid_aum_dates else None
+    prev_col = valid_aum_dates[1].strftime('%Y-%m-%d') if len(valid_aum_dates) > 1 else None
 
-    rename_map = {latest_col: 'AUM'}
-    if prev_col is not None:
+    rename_map = {}
+    if latest_col:
+        rename_map[latest_col] = 'AUM'
+    if prev_col:
         rename_map[prev_col] = 'Prev AUM'
-    aum_df = aum_df.rename(columns=rename_map)
-
-    keep_aum = ['ETF', 'AUM']
-    if prev_col is not None:
-        keep_aum.append('Prev AUM')
-    aum_df = aum_df[keep_aum].copy()
-
-    aum_df['AUM'] = pd.to_numeric(aum_df['AUM'], errors='coerce')
-    if prev_col is not None:
-        aum_df['Prev AUM'] = pd.to_numeric(aum_df['Prev AUM'], errors='coerce')
+    
+    aum_df_processed = aum_df.rename(columns=rename_map)
+    
+    keep_aum = ['ETF']
+    if latest_col:
+        keep_aum.append('AUM')
+        aum_df_processed['AUM'] = pd.to_numeric(aum_df_processed['AUM'], errors='coerce')
     else:
-        aum_df['Prev AUM'] = np.nan
+        aum_df_processed['AUM'] = np.nan
 
+    if prev_col:
+        keep_aum.append('Prev AUM')
+        aum_df_processed['Prev AUM'] = pd.to_numeric(aum_df_processed['Prev AUM'], errors='coerce')
+    else:
+        aum_df_processed['Prev AUM'] = np.nan
+        
+    aum_df_processed = aum_df_processed[keep_aum]
+
+    # Flow processing
     flow_date_cols = [c for c in flow_df.columns if c != 'ETF']
-    flow_date_cols_sorted = sorted(flow_date_cols, reverse=True)
-    ttm_cols = flow_date_cols_sorted[:12]
+    flow_date_cols_dt = pd.to_datetime(flow_date_cols, errors='coerce')
+    
+    # TTM Flow
+    ttm_end_date = selected_date
+    ttm_start_date = ttm_end_date - pd.DateOffset(months=12)
+    ttm_cols = [
+        d.strftime('%Y-%m-%d') for d in flow_date_cols_dt if pd.notna(d) and ttm_start_date < d <= ttm_end_date
+    ]
+    for col in ttm_cols:
+        flow_df[col] = pd.to_numeric(flow_df[col], errors='coerce')
+    flow_df['TTM Net Flow'] = flow_df[ttm_cols].sum(axis=1) if ttm_cols else 0.0
 
-    af = aum_df.merge(flow_df, on='ETF', how='left')
+    # Monthly Flow
+    monthly_flow_col = selected_date.strftime('%Y-%m-%d')
+    if monthly_flow_col in flow_df.columns:
+        flow_df['Monthly Flow'] = pd.to_numeric(flow_df[monthly_flow_col], errors='coerce')
+    else:
+        flow_df['Monthly Flow'] = 0.0
+
+    # YTD Flow
+    ytd_cols = [
+        d.strftime('%Y-%m-%d') for d in flow_date_cols_dt if pd.notna(d) and d.year == selected_date.year and d <= selected_date
+    ]
+    for col in ytd_cols:
+        flow_df[col] = pd.to_numeric(flow_df[col], errors='coerce')
+    if ytd_cols:
+        flow_df['YTD Flow'] = flow_df[ytd_cols].sum(axis=1)
+    else:
+        flow_df['YTD Flow'] = 0.0
+
+    # Performance processing
+    perf_cols = [c for c in perf_df.columns if c != 'ETF']
+    perf_cols_dt = pd.to_datetime(perf_cols, errors='coerce')
+    valid_perf_dates = sorted([d for d in perf_cols_dt if pd.notna(d) and d <= selected_date], reverse=True)
+    
+    if valid_perf_dates:
+        latest_perf_col = valid_perf_dates[0].strftime('%Y-%m-%d')
+        perf_df['Latest Performance'] = pd.to_numeric(perf_df[latest_perf_col], errors='coerce')
+    else:
+        perf_df['Latest Performance'] = np.nan
+
+    # Merging dataframes
+    af = aum_df_processed.merge(flow_df[['ETF', 'Monthly Flow', 'TTM Net Flow', 'YTD Flow']], on='ETF', how='left')
     afm = af.merge(
-        funds_df[['Ticker', 'Fund Name', 'Category', 'Secondary Category', 'Delisting Date', 'Indicator']],
+        funds_df[['Ticker', 'Fund Name','Inception', 'Category', 'Secondary Category', 'Delisting Date', 'Indicator']],
         left_on='ETF',
         right_on='Ticker',
         how='left'
     )
-    df = afm.merge(perf_df, on='ETF', how='left', suffixes=('', '_perf'))
-
-    for col in ttm_cols:
-        df[col] = pd.to_numeric(df[col].astype(str), errors='coerce')
-    df['TTM Net Flow'] = df[ttm_cols].sum(axis=1)
-
-    df['Monthly Flow'] = pd.to_numeric(df[flow_date_cols_sorted[0]].astype(str), errors='coerce')
-
-   
-    flow_dates = pd.to_datetime(flow_date_cols, errors='coerce')
-    current_year = pd.Timestamp.now().year
-    flow_year_map = dict(zip(flow_date_cols, flow_dates))
-    ytd_cols = [col for col, dt in flow_year_map.items() if (not pd.isna(dt)) and dt.year == current_year]
-    for col in ytd_cols:
-        df[col] = pd.to_numeric(df[col].astype(str), errors='coerce')
-    if ytd_cols:
-        df['YTD Flow'] = df[ytd_cols].sum(axis=1)
-    else:
-        df['YTD Flow'] = 0.0
+    df = afm.merge(perf_df[['ETF', 'Latest Performance']], on='ETF', how='left')
 
     df['Category'] = df['Category'].fillna('Unknown')
     df['Secondary Category'] = df['Secondary Category'].fillna('Unknown')
-
-    perf_cols = [c for c in perf_df.columns if c != 'ETF']
-    perf_cols_sorted = sorted(perf_cols, reverse=True)
-    latest_perf_col = perf_cols_sorted[0]
-    perf_df['Latest Performance'] = perf_df[latest_perf_col].astype(float)
-    df = df.merge(
-        perf_df[['ETF', 'Latest Performance']],
-        on='ETF',
-        how='left'
-    )
-
     df['Lightly Leveraged Indicator'] = df['Fund Name'].str.contains(r"1\.25|1\.33", na=False)
 
     paired_rows = df[df['Indicator'] == 2].copy()
@@ -149,7 +180,7 @@ def load_data(xlsx_path: str) -> pd.DataFrame:
                 base = group.iloc[0]
 
         pair_key = re.sub(r'/.$', '', base['ETF'])
-        if group['ETF'].str.endswith('/U', na=False).any():
+        if group['ETF'].str.contains('/U', na=False).any():
             new_ticker = f"{pair_key}(U)"
         else:
             new_ticker = pair_key
@@ -160,12 +191,13 @@ def load_data(xlsx_path: str) -> pd.DataFrame:
             'Category': base['Category'],
             'Secondary Category': base['Secondary Category'],
             'Delisting Date': base['Delisting Date'],
+            'Inception': base['Inception'],
             'Indicator': base['Indicator'],
             'AUM': base['AUM'],
             'Prev AUM': base['Prev AUM'],
             'Monthly Flow': base['Monthly Flow'],
             'TTM Net Flow': base['TTM Net Flow'],
-            'YTD Flow': base['YTD Flow'],                     # preserve newly computed YTD Flow
+            'YTD Flow': base['YTD Flow'],
             'Latest Performance': base['Latest Performance'],
             'Lightly Leveraged Indicator': bool(base['Lightly Leveraged Indicator'])
         })
@@ -182,34 +214,51 @@ def load_data(xlsx_path: str) -> pd.DataFrame:
         combined_pairs = pd.DataFrame(columns=[
             'ETF', 'Fund Name', 'Category', 'Secondary Category', 'Delisting Date',
             'Indicator', 'AUM', 'Prev AUM', 'Monthly Flow', 'TTM Net Flow',
-            'YTD Flow', 'Latest Performance', 'Lightly Leveraged Indicator'
+            'YTD Flow', 'Latest Performance', 'Lightly Leveraged Indicator', 'Inception'
         ])
-
+    
     keep_cols = [
         'ETF', 'Fund Name', 'Category', 'Secondary Category', 'Delisting Date',
         'Indicator', 'AUM', 'Prev AUM', 'Monthly Flow', 'TTM Net Flow',
-        'YTD Flow', 'Latest Performance', 'Lightly Leveraged Indicator'
+        'YTD Flow', 'Latest Performance', 'Lightly Leveraged Indicator','Inception'
     ]
     single_trimmed = single_rows[keep_cols].copy()
     final_df = pd.concat([single_trimmed, combined_pairs], ignore_index=True)
 
     return final_df
 
+# Load raw data once
+funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw = load_raw_data(onedrive_url)
 
-df = load_data(onedrive_url)
+# Get available dates for the date selector
+flow_date_cols = [c for c in flow_df_raw.columns if c != 'ETF']
+available_dates = sorted(pd.to_datetime(flow_date_cols, errors='coerce').dropna(), reverse=True)
+available_date_strs = [d.strftime('%Y-%m-%d') for d in available_dates]
 
 st.markdown("### Filters")
-col1, col2, col3 = st.columns([2, 2, 1])
+col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
 
-with col3:
+with col1:
+    selected_date = st.selectbox(
+        "Select Analysis Date",
+        options=available_date_strs,
+        index=0,
+        help="The dashboard will be run based on this date."
+    )
+
+# Process data based on selected date
+df = process_data_for_date(selected_date, funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw)
+
+with col4:
     show_leveraged_only = st.checkbox("Show Lightly Leveraged Only")
 
 filtered = df.copy()
+filtered = df[df['Inception'] <= selected_date].copy()
 
 if show_leveraged_only:
     filtered = filtered[filtered['Lightly Leveraged Indicator']]
 
-with col1:
+with col2:
     all_cats = sorted(filtered['Category'].unique())
     selected_cats = st.multiselect(
         "Category",
@@ -219,7 +268,7 @@ with col1:
         key="category_select" 
     )
 
-with col2:
+with col3:
     if selected_cats:
         options = sorted(filtered[filtered['Category'].isin(selected_cats)]['Secondary Category'].unique())
     else:
@@ -244,7 +293,13 @@ st.markdown("### Summary Statistics")
 metric_cols = st.columns(5)
 
 with metric_cols[0]:
-    active_etfs = filtered[filtered['Delisting Date'] == 'Active']
+    selected_date_dt = pd.to_datetime(selected_date)
+    delisting_dates = pd.to_datetime(filtered['Delisting Date'], errors='coerce')
+    
+
+    active_etfs = filtered[
+        (delisting_dates > selected_date_dt) | pd.isna(delisting_dates)
+    ]
     st.markdown(
         f"""<div class="metric-card">
             <h4>Number of ETFs</h4>
@@ -432,8 +487,11 @@ st.plotly_chart(fig, use_container_width=True)
 
 st.markdown("### Secondary Category Analysis")
 
-all_categories     = sorted(df['Category'].unique())
-all_subcategories  = sorted(df['Secondary Category'].unique())
+# Use the full dataframe for the selected date for this analysis section
+analysis_base_df = df.copy()
+
+all_categories     = sorted(analysis_base_df['Category'].unique())
+all_subcategories  = sorted(analysis_base_df['Secondary Category'].unique())
 
 selected_categories    = st.multiselect(
     "Select Category(s) for Analysis",
@@ -451,7 +509,7 @@ selected_subcategories = st.multiselect(
     key="subcat_analysis"
 )
 
-analysis_df = df.copy()
+analysis_df = analysis_base_df.copy()
 
 if selected_categories:
     analysis_df = analysis_df[analysis_df['Category'].isin(selected_categories)]
@@ -464,6 +522,9 @@ if selected_subcategories:
     group_col = 'Category'
 else:
     group_col = 'Secondary Category'
+
+# Ensure Prev AUM is not zero to avoid division by zero errors
+analysis_df = analysis_df[analysis_df['Prev AUM'].notna() & (analysis_df['Prev AUM'] != 0)]
 
 agg = (
     analysis_df
@@ -525,12 +586,11 @@ secondary_fig.update_layout(
 
 st.plotly_chart(secondary_fig, use_container_width=True)
 
-# Export filtered data as CSV for download
 csv_data = filtered.to_csv(index=False).encode("utf-8")
 st.markdown("### Export Data")
 st.download_button(
     label="Download Filtered Dataset as CSV",
     data=csv_data,
-    file_name="filtered_dataset.csv",
+    file_name=f"filtered_dataset_{selected_date}.csv",
     mime="text/csv"
 )
