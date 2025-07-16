@@ -621,7 +621,7 @@ st.download_button(
     mime="text/csv"
 )
 
-# llm = LiteLLM(model="gemini/gemini-2.5-flash", api_key="AIzaSyDi2WJsR1gXimfxfPv-kupgdgXalqc8CcY")
+# llm = LiteLLM(model="gemini/gemini-2.5-flash", api_key="GOOGAPI")
 # pai.config.set({
 #     "llm": llm
 # })
