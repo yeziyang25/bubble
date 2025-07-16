@@ -7,7 +7,15 @@ import re
 import requests
 from io import BytesIO
 from datetime import datetime
+from pandasai.smart_dataframe import SmartDataframe
+from pandasai.config import Config
+from google import genai
+import pandasai as pai
+from pandasai_litellm.litellm import LiteLLM
 
+
+#need a feature to select all categories that pop up based on my type in search
+#for the second chart, i want text to be at the side first,
 st.set_page_config(
     page_title="ETF Bubble Dashboard",
     layout="wide",
@@ -77,7 +85,6 @@ def process_data_for_date(selected_date_str: str, funds_df: pd.DataFrame, aum_df
     flow_df = flow_df.copy()
     perf_df = perf_df.copy()
 
-    # AUM processing
     aum_date_cols = [c for c in aum_df.columns if c != 'ETF']
     aum_date_cols_dt = pd.to_datetime(aum_date_cols, errors='coerce')
     valid_aum_dates = sorted([d for d in aum_date_cols_dt if pd.notna(d) and d <= selected_date], reverse=True)
@@ -108,11 +115,9 @@ def process_data_for_date(selected_date_str: str, funds_df: pd.DataFrame, aum_df
         
     aum_df_processed = aum_df_processed[keep_aum]
 
-    # Flow processing
     flow_date_cols = [c for c in flow_df.columns if c != 'ETF']
     flow_date_cols_dt = pd.to_datetime(flow_date_cols, errors='coerce')
     
-    # TTM Flow
     ttm_end_date = selected_date
     ttm_start_date = ttm_end_date - pd.DateOffset(months=12)
     ttm_cols = [
@@ -122,14 +127,12 @@ def process_data_for_date(selected_date_str: str, funds_df: pd.DataFrame, aum_df
         flow_df[col] = pd.to_numeric(flow_df[col], errors='coerce')
     flow_df['TTM Net Flow'] = flow_df[ttm_cols].sum(axis=1) if ttm_cols else 0.0
 
-    # Monthly Flow
     monthly_flow_col = selected_date.strftime('%Y-%m-%d')
     if monthly_flow_col in flow_df.columns:
         flow_df['Monthly Flow'] = pd.to_numeric(flow_df[monthly_flow_col], errors='coerce')
     else:
         flow_df['Monthly Flow'] = 0.0
 
-    # YTD Flow
     ytd_cols = [
         d.strftime('%Y-%m-%d') for d in flow_date_cols_dt if pd.notna(d) and d.year == selected_date.year and d <= selected_date
     ]
@@ -140,7 +143,6 @@ def process_data_for_date(selected_date_str: str, funds_df: pd.DataFrame, aum_df
     else:
         flow_df['YTD Flow'] = 0.0
 
-    # Performance processing
     perf_cols = [c for c in perf_df.columns if c != 'ETF']
     perf_cols_dt = pd.to_datetime(perf_cols, errors='coerce')
     valid_perf_dates = sorted([d for d in perf_cols_dt if pd.notna(d) and d <= selected_date], reverse=True)
@@ -151,7 +153,6 @@ def process_data_for_date(selected_date_str: str, funds_df: pd.DataFrame, aum_df
     else:
         perf_df['Latest Performance'] = np.nan
 
-    # Merging dataframes
     af = aum_df_processed.merge(flow_df[['ETF', 'Monthly Flow', 'TTM Net Flow', 'YTD Flow']], on='ETF', how='left')
     afm = af.merge(
         funds_df[['Ticker', 'Fund Name','Inception', 'Category', 'Secondary Category', 'Delisting Date', 'Indicator']],
@@ -227,10 +228,8 @@ def process_data_for_date(selected_date_str: str, funds_df: pd.DataFrame, aum_df
 
     return final_df
 
-# Load raw data once
 funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw = load_raw_data(onedrive_url)
 
-# Get available dates for the date selector
 flow_date_cols = [c for c in flow_df_raw.columns if c != 'ETF']
 available_dates = sorted(pd.to_datetime(flow_date_cols, errors='coerce').dropna(), reverse=True)
 available_date_strs = [d.strftime('%Y-%m-%d') for d in available_dates]
@@ -246,7 +245,6 @@ with col1:
         help="The dashboard will be run based on this date."
     )
 
-# Process data based on selected date
 df = process_data_for_date(selected_date, funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw)
 
 with col4:
@@ -258,12 +256,18 @@ filtered = df[df['Inception'] <= selected_date].copy()
 if show_leveraged_only:
     filtered = filtered[filtered['Lightly Leveraged Indicator']]
 
+#multi
 with col2:
     all_cats = sorted(filtered['Category'].unique())
+    search_cat = st.text_input("Search for Categories", key="cat_search")
+    if st.button("Select All Matching Categories", key="select_matching_cat"):
+        matching = [cat for cat in all_cats if search_cat.lower() in cat.lower()]
+        st.session_state["category_select"] = matching
+    default_cats = st.session_state.get("category_select", [])
     selected_cats = st.multiselect(
         "Category",
         options=all_cats,
-        default=[],
+        default=default_cats,
         help="Pick one or more categories (empty = no category filter unless secondary is chosen)",
         key="category_select" 
     )
@@ -273,10 +277,15 @@ with col3:
         options = sorted(filtered[filtered['Category'].isin(selected_cats)]['Secondary Category'].unique())
     else:
         options = sorted(filtered['Secondary Category'].unique())
+    search_subcat = st.text_input("Search for Secondary Categories", key="subcat_search")
+    if st.button("Select All Matching Secondary Categories", key="select_matching_subcat"):
+        matching = [subcat for subcat in options if search_subcat.lower() in subcat.lower()]
+        st.session_state["secondary_category_select"] = matching
+    default_subcats = st.session_state.get("secondary_category_select", [])
     selected_subcats = st.multiselect(
         "Secondary Category",
         options=options,
-        default=[],
+        default=default_subcats,
         help="Pick one or more sub-categories",
         key="secondary_category_select"  
     )
@@ -492,7 +501,12 @@ analysis_base_df = df.copy()
 
 all_categories     = sorted(analysis_base_df['Category'].unique())
 all_subcategories  = sorted(analysis_base_df['Secondary Category'].unique())
+analysis_search_cat = st.text_input("Search for Categories for Analysis", key="analysis_cat_search")
+if st.button("Select All Matching Categories for Analysis", key="select_all_analysis_cat"):
+    matching = [cat for cat in all_categories if analysis_search_cat.lower() in cat.lower()]
+    st.session_state["cat_analysis"] = matching
 
+default_analysis_cats = st.session_state.get("cat_analysis", [])
 selected_categories    = st.multiselect(
     "Select Category(s) for Analysis",
     options=all_categories,
@@ -501,6 +515,14 @@ selected_categories    = st.multiselect(
     key="cat_analysis"
 )
 
+
+
+analysis_search_subcat = st.text_input("Search for Subcategories for Analysis", key="analysis_subcat_search")
+if st.button("Select All Matching Subcategories for Analysis", key="select_all_analysis_subcat"):
+    matching = [cat for cat in all_subcategories if analysis_search_subcat.lower() in cat.lower()]
+    st.session_state["subcat_analysis"] = matching
+
+default_analysis_subcats = st.session_state.get("subcat_analysis", [])
 selected_subcategories = st.multiselect(
     "Select Secondary Category(s) for Analysis",
     options=all_subcategories,
@@ -522,6 +544,8 @@ if selected_subcategories:
     group_col = 'Category'
 else:
     group_col = 'Secondary Category'
+
+is_showing_all_sub = not (selected_categories or selected_subcategories or show_leveraged_only)
 
 # Ensure Prev AUM is not zero to avoid division by zero errors
 analysis_df = analysis_df[analysis_df['Prev AUM'].notna() & (analysis_df['Prev AUM'] != 0)]
@@ -567,10 +591,7 @@ secondary_fig = px.scatter(
 
 )
 
-secondary_fig.update_traces(
-    textposition='top center',
-    textfont=dict(size=15, color='black')
-)
+
 
 secondary_fig.update_layout(
     title={
@@ -583,6 +604,15 @@ secondary_fig.update_layout(
     margin=dict(l=40, r=40, t=60, b=40),
     showlegend=False
 )
+if is_showing_all_sub:
+    secondary_fig.update_traces(text=None)
+    secondary_fig.update_layout(showlegend=True)
+else:
+    secondary_fig.update_traces(         
+        textposition='top center',
+        textfont=dict(size=15, color='black')
+    )
+    secondary_fig.update_layout(showlegend=False)
 
 st.plotly_chart(secondary_fig, use_container_width=True)
 
@@ -594,3 +624,28 @@ st.download_button(
     file_name=f"filtered_dataset_{selected_date}.csv",
     mime="text/csv"
 )
+
+# llm = LiteLLM(model="gemini/gemini-2.5-flash", api_key="AIzaSyDi2WJsR1gXimfxfPv-kupgdgXalqc8CcY")
+# pai.config.set({
+#     "llm": llm
+# })
+# config = Config(llm=llm)
+# smart_df = SmartDataframe(filtered, config=config)
+
+# st.markdown("---")
+# st.markdown("## 🤖 Ask the ETF Dataset")
+# df = pai.DataFrame(filtered)
+# response = df.chat("Which ETFs have the highest TTM Net Flow?")
+# print(response)
+# # q = st.text_input("What do you want to know about these ETFs?", key="pandasai_question")
+
+# if st.button("Ask PaLM"):
+#     if q:
+#         with st.spinner("Thinking with PaLM..."):
+#             try:
+#                 answer = df.chat(q)
+#                 st.markdown(f"**Answer:** {answer}")
+#             except Exception as e:
+#                 st.error(f"Oops, couldn’t get an answer: {e}")
+#     else:
+#         st.warning("Please type a question first.")
