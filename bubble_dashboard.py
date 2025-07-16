@@ -7,11 +7,7 @@ import re
 import requests
 from io import BytesIO
 from datetime import datetime
-from pandasai.smart_dataframe import SmartDataframe
-from pandasai.config import Config
-from google import genai
-import pandasai as pai
-from pandasai_litellm.litellm import LiteLLM
+
 
 
 #need a feature to select all categories that pop up based on my type in search
