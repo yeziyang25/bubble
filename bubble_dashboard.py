@@ -7,7 +7,7 @@ import re
 import requests
 from io import BytesIO
 from datetime import datetime
-from llm_api import ask_gemma  
+from llm_api import ask_gemma, ask_gemma_with_context  
 
 
 
@@ -247,19 +247,48 @@ df = process_data_for_date(selected_date, funds_df_raw, aum_df_raw, flow_df_raw,
 
 with st.sidebar:
     st.header("🤖 GX Chat")
-    # initialize history
+    
+    # Add context refresh button
+    col1, col2 = st.columns([3, 1])
+    with col2:
+        if st.button("🔄", help="Refresh data context", key="refresh_context"):
+            if "conversation_history" in st.session_state:
+                st.session_state.conversation_history = []
+            st.rerun()
+    
+    # Initialize history and conversation history
     if "history" not in st.session_state:
         st.session_state.history = []
+    if "conversation_history" not in st.session_state:
+        st.session_state.conversation_history = []
+    
     # render messages
     for msg in st.session_state.history:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
+    
     # input
     if user := st.chat_input("Ask me…"):
         st.session_state.history.append({"role":"user","content":user})
         with st.chat_message("assistant"):
             st.markdown("…")
-        ans = ask_gemma(user, df,max_rows = 2000)
+        
+        # Use context-aware function
+        ans = ask_gemma_with_context(
+            question=user, 
+            conversation_history=st.session_state.conversation_history,
+            df=df,
+            max_rows=500
+        )
+        
+        # Update conversation history for context
+        st.session_state.conversation_history.append({"role": "user", "content": user})
+        st.session_state.conversation_history.append({"role": "assistant", "content": ans})
+        
+        # Keep conversation history manageable (last 10 exchanges)
+        if len(st.session_state.conversation_history) > 20:
+            st.session_state.conversation_history = st.session_state.conversation_history[-20:]
+        
         st.session_state.history.append({"role":"assistant","content":ans})
         st.rerun()
 
