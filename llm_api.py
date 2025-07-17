@@ -38,7 +38,7 @@ def ask_gemma(
 
     df2 = df
     if tickers:
-        df2 = df2[df2["Ticker"].isin(tickers)]
+        df2 = df2[df2["ETF"].isin(tickers)]
     if categories:
         df2 = df2[df2["Category"].isin(categories)]
     if sec_categories:
