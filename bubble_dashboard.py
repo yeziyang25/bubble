@@ -247,7 +247,7 @@ st.markdown("## Chat with GX Assistant")
 chat_question = st.text_input("Ask a question about the Canadian ETF")
 if chat_question:
     if st.button("Get Answer"):
-        chat_answer = ask_gemma(chat_question, df, max_rows=10)
+        chat_answer = ask_gemma(chat_question, df, max_rows=50)
         st.write(chat_answer)
 
 with col4:
