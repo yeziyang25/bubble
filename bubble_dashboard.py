@@ -245,12 +245,24 @@ with col1:
 
 df = process_data_for_date(selected_date, funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw)
 
-st.markdown("## Chat with GX Assistant")
-chat_question = st.text_input("Ask a question about the Canadian ETF")
-if chat_question:
-    if st.button("Get Answer"):
-        chat_answer = ask_gemma(chat_question, df, max_rows=2000)
-        st.write(chat_answer)
+with st.sidebar:
+    st.header("🤖 GX Chat")
+    # initialize history
+    if "history" not in st.session_state:
+        st.session_state.history = []
+    # render messages
+    for msg in st.session_state.history:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+    # input
+    if user := st.chat_input("Ask me…"):
+        st.session_state.history.append({"role":"user","content":user})
+        with st.chat_message("assistant"):
+            st.markdown("…")
+        ans = ask_gemma(user, df)
+        st.session_state.history.append({"role":"assistant","content":ans})
+        st.rerun()
+
 
 with col4:
     show_leveraged_only = st.checkbox("Show Lightly Leveraged Only")
