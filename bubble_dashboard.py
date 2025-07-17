@@ -7,11 +7,9 @@ import re
 import requests
 from io import BytesIO
 from datetime import datetime
+from llm_api import ask_gemma  
 
 
-
-#need a feature to select all categories that pop up based on my type in search
-#for the second chart, i want text to be at the side first,
 st.set_page_config(
     page_title="ETF Bubble Dashboard",
     layout="wide",
@@ -34,14 +32,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("📊 ETF Bubble Chart Dashboard")
-st.markdown(
-    """
-    • **Step 1:** pick a *Date* for analysis.
-    • **Step 2:** pick one or more *Category* values below.  
-    • **Step 3:** then pick any relevant *Secondary Category* values.  
-    """
-)
+
 
 onedrive_url = "https://globalxcanada-my.sharepoint.com/:x:/g/personal/eden_ye_globalx_ca/Eas53aR4lPlDn0ZlNHgX4ZABPDpH1Ign2mH4NGcJ0Hb80w?download=1"
 
@@ -230,6 +221,15 @@ flow_date_cols = [c for c in flow_df_raw.columns if c != 'ETF']
 available_dates = sorted(pd.to_datetime(flow_date_cols, errors='coerce').dropna(), reverse=True)
 available_date_strs = [d.strftime('%Y-%m-%d') for d in available_dates]
 
+st.title("📊 ETF Bubble Chart Dashboard")
+st.markdown(
+    """
+    • **Step 1:** pick a *Date* for analysis.
+    • **Step 2:** pick one or more *Category* values below.  
+    • **Step 3:** then pick any relevant *Secondary Category* values.  
+    """
+)
+
 st.markdown("### Filters")
 col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
 
@@ -242,6 +242,13 @@ with col1:
     )
 
 df = process_data_for_date(selected_date, funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw)
+
+st.markdown("## Chat with GX Assistant")
+chat_question = st.text_input("Ask a question about the Canadian ETF")
+if chat_question:
+    if st.button("Get Answer"):
+        chat_answer = ask_gemma(chat_question, df, max_rows=10)
+        st.write(chat_answer)
 
 with col4:
     show_leveraged_only = st.checkbox("Show Lightly Leveraged Only")
@@ -543,7 +550,6 @@ else:
 
 is_showing_all_sub = not (selected_categories or selected_subcategories or show_leveraged_only)
 
-# Ensure Prev AUM is not zero to avoid division by zero errors
 analysis_df = analysis_df[analysis_df['Prev AUM'].notna() & (analysis_df['Prev AUM'] != 0)]
 
 agg = (
@@ -587,8 +593,6 @@ secondary_fig = px.scatter(
 
 )
 
-
-
 secondary_fig.update_layout(
     title={
         'text': f"Flow vs. Performance grouped by {group_col}",
@@ -620,28 +624,6 @@ st.download_button(
     file_name=f"filtered_dataset_{selected_date}.csv",
     mime="text/csv"
 )
-
-# llm = LiteLLM(model="gemini/gemini-2.5-flash", api_key="GOOGAPI")
-# pai.config.set({
-#     "llm": llm
-# })
-# config = Config(llm=llm)
-# smart_df = SmartDataframe(filtered, config=config)
-
-# st.markdown("---")
-# st.markdown("## 🤖 Ask the ETF Dataset")
-# df = pai.DataFrame(filtered)
-# response = df.chat("Which ETFs have the highest TTM Net Flow?")
-# print(response)
-# # q = st.text_input("What do you want to know about these ETFs?", key="pandasai_question")
-
-# if st.button("Ask PaLM"):
-#     if q:
-#         with st.spinner("Thinking with PaLM..."):
-#             try:
-#                 answer = df.chat(q)
-#                 st.markdown(f"**Answer:** {answer}")
-#             except Exception as e:
 #                 st.error(f"Oops, couldn’t get an answer: {e}")
 #     else:
 #         st.warning("Please type a question first.")
