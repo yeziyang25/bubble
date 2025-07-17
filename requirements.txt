@@ -3,6 +3,5 @@ plotly
 streamlit
 openpyxl
 requests
-json
 openai
 typing
