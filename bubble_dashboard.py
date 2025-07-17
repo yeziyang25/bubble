@@ -274,11 +274,10 @@ with st.sidebar:
             st.markdown("…")
         
         # Use context-aware function
-        ans = ask_gemma_with_context(
+        ans = ask_gemma(
             question=user, 
-            conversation_history=st.session_state.conversation_history,
             df=df,
-            max_rows=500
+            max_rows=500  #subject to change. put as 500 to save some tokens limits
         )
         
         # Update conversation history for context
