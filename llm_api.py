@@ -8,9 +8,8 @@ from typing import List, cast
 
 
 client = OpenAI(
-    base_url="http://127.0.0.1:1234/v1", api_key="lm-studio"
+    base_url=st.secrets["LLM_URL"], api_key=st.secrets["API_KEY"]
 )
-
 def ask_gemma(
     question: str,
     df: pd.DataFrame,
