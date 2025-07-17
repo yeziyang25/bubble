@@ -249,8 +249,8 @@ with st.sidebar:
     st.header("🤖 GX Chat")
     
     # Add context refresh button
-    col1, col2 = st.columns([3, 1])
-    with col2:
+    chat_col1, chat_col2 = st.columns([3, 1])
+    with chat_col2:
         if st.button("🔄", help="Refresh data context", key="refresh_context"):
             if "conversation_history" in st.session_state:
                 st.session_state.conversation_history = []
