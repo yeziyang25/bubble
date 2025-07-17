@@ -2,10 +2,13 @@ import pandas as pd
 import json
 from openai import OpenAI
 from typing import List, cast
+import streamlit as st
 
 
 
-
+client = OpenAI(
+    base_url=st.secrets["LLM_URL"], api_key=st.secrets["API_KEY"]
+)
 
 def ask_gemma(
     question: str,
