@@ -259,7 +259,7 @@ with st.sidebar:
         st.session_state.history.append({"role":"user","content":user})
         with st.chat_message("assistant"):
             st.markdown("…")
-        ans = ask_gemma(user, df)
+        ans = ask_gemma(user, df,max_rows = 2000)
         st.session_state.history.append({"role":"assistant","content":ans})
         st.rerun()
 
