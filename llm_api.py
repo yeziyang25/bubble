@@ -10,7 +10,7 @@ def ask_gemma(
     question: str,
     df: pd.DataFrame,
     max_rows: int = 20,
-    model: str = "gpt-4",
+    model: str = "gpt-4.1-nano-2025-04-14",
 ) -> str:
     """
     Parse tickers, Category, and Secondary Category out of `question`
@@ -18,7 +18,7 @@ def ask_gemma(
     back to the first `max_rows` of df.
     """
     # 1) Gather all valid values from df
-    all_tickers    = set(df["Ticker"].astype(str))
+    all_tickers    = set(df["ETF"].astype(str))
     all_cats       = df["Category"].dropna().astype(str).unique().tolist()
     all_sec_cats   = df["Secondary Category"].dropna().astype(str).unique().tolist()
 
