@@ -6,24 +6,21 @@ import streamlit as st
 
 
 
-client = OpenAI(
-    base_url=st.secrets["LLM_URL"], api_key=st.secrets["API_KEY"]
-)
+client = OpenAI(api_key=st.secrets["API_KEY"])
 
 def ask_gemma(
     question: str,
     df: pd.DataFrame,
     max_rows: int = 20,
-    model: str = "google/gemma-3-12b",
+    model: str = "gpt-4.1-nano-2025-04-14",
 ) -> str:
     
     sample = df.head(max_rows).copy()
     records_json = sample.to_json(orient="records", date_format="iso")
-    records      = json.loads(records_json)           
-    data_json    = json.dumps(records, indent=2)
+    data_json      = json.loads(records_json)           
 
     messages = [
-        {"role": "system", "content": "You are a data‑savvy assistant."},
+        {"role": "system", "content": "You are a data‑savvy assistant that help me analyze the Canadian ETF Market."},
         {"role": "user",   "content": f"Data (first {max_rows} rows):\n{data_json}\n\nQ: {question}"}
     ]
 
@@ -40,3 +37,4 @@ def ask_gemma(
 
     content = resp.choices[0].message.content
     return content.strip() if content is not None else ""
+
