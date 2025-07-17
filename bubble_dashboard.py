@@ -10,6 +10,8 @@ from datetime import datetime
 from llm_api import ask_gemma  
 
 
+
+
 st.set_page_config(
     page_title="ETF Bubble Dashboard",
     layout="wide",
@@ -32,7 +34,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-
+client = OpenAI(
+    base_url=st.secrets["LLM_URL"], api_key=st.secrets["API_KEY"]
+)
 
 onedrive_url = "https://globalxcanada-my.sharepoint.com/:x:/g/personal/eden_ye_globalx_ca/Eas53aR4lPlDn0ZlNHgX4ZABPDpH1Ign2mH4NGcJ0Hb80w?download=1"
 
