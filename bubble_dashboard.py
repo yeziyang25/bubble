@@ -403,6 +403,8 @@ with col3:
         if st.button("➕All", key="add_matching_subcat"):
             st.write("")
             st.write("")
+            st.write("")
+
             matching = [subcat for subcat in options if search_subcat.lower() in subcat.lower()]
             current_selection = set(st.session_state.get("secondary_category_select", []))
             st.session_state["secondary_category_select"] = list(current_selection.union(matching))
