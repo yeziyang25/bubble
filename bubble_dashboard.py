@@ -123,11 +123,15 @@ st.markdown(
 )
 
 
+onedrive_url = "https://globalxcanada-my.sharepoint.com/:x:/g/personal/eden_ye_globalx_ca/Eas53aR4lPlDn0ZlNHgX4ZABPDpH1Ign2mH4NGcJ0Hb80w?download=1"
 
 sample_data_path = "sample_data/etf_data.xlsx"
 
 @st.cache_data
 def load_raw_data(xlsx_path: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    resp = requests.get(xlsx_path)
+    resp.raise_for_status()
+    excel_buffer = BytesIO(resp.content)
     funds_df = pd.read_excel(xlsx_path, engine="openpyxl", sheet_name="consolidated_10032022")
     aum_df   = pd.read_excel(xlsx_path, engine="openpyxl", sheet_name="aum")
     flow_df  = pd.read_excel(xlsx_path, engine="openpyxl", sheet_name="fund_flow")
@@ -301,7 +305,7 @@ def process_data_for_date(selected_date_str: str, funds_df: pd.DataFrame, aum_df
 
     return final_df
 
-funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw = load_raw_data(sample_data_path)
+funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw = load_raw_data(onedrive_url)
 
 flow_date_cols = [c for c in flow_df_raw.columns if c != 'ETF']
 available_dates = sorted(pd.to_datetime(flow_date_cols, errors='coerce').dropna(), reverse=True)
