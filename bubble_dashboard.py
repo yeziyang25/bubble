@@ -400,10 +400,8 @@ with col3:
         search_subcat = st.text_input("🔍Search Category", key="subcat_search")
     with subcat_add_col:
         st.write("")
+        st.write("")
         if st.button("➕All", key="add_matching_subcat"):
-            st.write("")
-            st.write("")
-            st.write("")
 
             matching = [subcat for subcat in options if search_subcat.lower() in subcat.lower()]
             current_selection = set(st.session_state.get("secondary_category_select", []))
