@@ -10,7 +10,7 @@ def ask_gemma(
     question: str,
     df: pd.DataFrame,
     max_rows: int = 20,
-    model: str = "gpt-4.1-nano-2025-04-14",
+    model: str = "gpt-4.1-mini-2025-04-14",
 ) -> str:
     """
     Parse tickers, Category, and Secondary Category out of `question`
