@@ -20,14 +20,87 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    .stApp { background: #f9f9f9; }
-    h1 { color: #2C3E50; }
-    .metric-card {
-        background-color: white;
-        padding: 15px;
-        border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    .stApp { 
+        background: linear-gradient(135deg, #f5f7fa 0%, #e8f4f8 100%);
+    }
+
+    .global-x-main {
+        font-size: 48px;
+        font-weight: bold;
+        color: #FF5722;
+        font-family: 'Arial', 'Helvetica', sans-serif;
+        letter-spacing: 3px;
+        margin: 0;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+    }
+    .global-x-subtitle {
+        font-size: 18px;
+        color: #4682A9;
+        font-family: 'Arial', 'Helvetica', sans-serif;
+        margin: 5px 0 0 0;
+        font-weight: normal;
+    }
+    h1 { 
+        color: #00695C; 
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         text-align: center;
+        padding: 20px 0;
+        margin-bottom: 30px;
+    }
+    h3 {
+        color: #00695C;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        border-bottom: 2px solid #FF5722;
+        padding-bottom: 10px;
+        margin-top: 40px;
+        margin-bottom: 20px;
+    }
+    .metric-card {
+        background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        text-align: center;
+        border-left: 4px solid #FF5722;
+        transition: transform 0.2s ease;
+    }
+    .metric-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        border-left-color: #00695C;
+    }
+    
+    .filters-container {
+        background: white;
+        padding: 25px;
+        border-radius: 15px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        margin-bottom: 30px;
+        border-top: 3px solid #FF5722;
+    }
+    /* Multiselect improvements */
+    .stMultiSelect > div > div > div {
+        border-radius: 8px;
+        border: 2px solid #BDC3C7;
+        transition: border-color 0.3s ease;
+    }
+    .stMultiSelect > div > div > div:focus-within {
+        border-color: #FF5722;
+        box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.1);
+    }
+    /* Selectbox improvements */
+    .stSelectbox > div > div > div {
+        border-radius: 8px;
+        border: 2px solid #BDC3C7;
+        transition: border-color 0.3s ease;
+    }
+    .stSelectbox > div > div > div:focus-within {
+        border-color: #FF5722;
+        box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.1);
+    }
+    /* Checkbox styling */
+    .stCheckbox > label > div {
+        color: #00695C;
     }
     </style>
     """,
@@ -224,23 +297,16 @@ available_dates = sorted(pd.to_datetime(flow_date_cols, errors='coerce').dropna(
 available_date_strs = [d.strftime('%Y-%m-%d') for d in available_dates]
 
 st.title("📊 ETF Bubble Chart Dashboard")
-st.markdown(
-    """
-    • **Step 1:** pick a *Date* for analysis.
-    • **Step 2:** pick one or more *Category* values below.  
-    • **Step 3:** then pick any relevant *Secondary Category* values.  
-    """
-)
 
-st.markdown("### Filters")
-col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
+
+col1, col2, col3, col4 = st.columns([2, 2.5, 2.5, 1.5])
 
 with col1:
     selected_date = st.selectbox(
-        "Select Analysis Date",
+        "📅 Analysis Date",
         options=available_date_strs,
         index=0,
-        help="The dashboard will be run based on this date."
+        help="Select the date for your analysis"
     )
 
 df = process_data_for_date(selected_date, funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw)
@@ -293,7 +359,7 @@ with st.sidebar:
 
 
 with col4:
-    show_leveraged_only = st.checkbox("Show Lightly Leveraged Only")
+    show_leveraged_only = st.checkbox("⚖️ Show Lightly Leveraged Only", value=False, help="Filter to show only lightly leveraged ETFs (1.25x or 1.33x leverage).")
 
 filtered = df.copy()
 filtered = df[df['Inception'] <= selected_date].copy()
@@ -304,17 +370,24 @@ if show_leveraged_only:
 #multi
 with col2:
     all_cats = sorted(filtered['Category'].unique())
-    search_cat = st.text_input("Search for Categories", key="cat_search")
-    if st.button("Select All Matching Categories", key="select_matching_cat"):
-        matching = [cat for cat in all_cats if search_cat.lower() in cat.lower()]
-        st.session_state["category_select"] = matching
+    cat_search_col, cat_add_col = st.columns([4, 1])
+    with cat_search_col:
+        search_cat = st.text_input("🔍Search Category", key="cat_search")
+    with cat_add_col:
+        st.write("")
+        st.write("")
+        if st.button("➕All", key="add_matching_cat"):
+            matching = [cat for cat in all_cats if search_cat.lower() in cat.lower()]
+            current_selection = set(st.session_state.get("category_select", []))
+            st.session_state["category_select"] = list(current_selection.union(matching))
     default_cats = st.session_state.get("category_select", [])
     selected_cats = st.multiselect(
-        "Category",
+        "📊 Category",
         options=all_cats,
         default=default_cats,
         help="Pick one or more categories (empty = no category filter unless secondary is chosen)",
-        key="category_select" 
+        key="category_select",
+        width=450
     )
 
 with col3:
@@ -322,17 +395,25 @@ with col3:
         options = sorted(filtered[filtered['Category'].isin(selected_cats)]['Secondary Category'].unique())
     else:
         options = sorted(filtered['Secondary Category'].unique())
-    search_subcat = st.text_input("Search for Secondary Categories", key="subcat_search")
-    if st.button("Select All Matching Secondary Categories", key="select_matching_subcat"):
-        matching = [subcat for subcat in options if search_subcat.lower() in subcat.lower()]
-        st.session_state["secondary_category_select"] = matching
+    subcat_search_col, subcat_add_col = st.columns([4, 1])
+    with subcat_search_col:
+        search_subcat = st.text_input("🔍Search Category", key="subcat_search")
+    with subcat_add_col:
+        st.write("")
+        if st.button("➕All", key="add_matching_subcat"):
+            st.write("")
+            st.write("")
+            matching = [subcat for subcat in options if search_subcat.lower() in subcat.lower()]
+            current_selection = set(st.session_state.get("secondary_category_select", []))
+            st.session_state["secondary_category_select"] = list(current_selection.union(matching))
     default_subcats = st.session_state.get("secondary_category_select", [])
     selected_subcats = st.multiselect(
-        "Secondary Category",
+        "🎯 Secondary Category",
         options=options,
         default=default_subcats,
         help="Pick one or more sub-categories",
-        key="secondary_category_select"  
+        key="secondary_category_select" ,
+        width=450
     )
 
 if selected_cats:
@@ -345,7 +426,6 @@ filtered = filtered.copy()
 filtered['AUM'] = filtered['AUM'].fillna(0)
 st.markdown("### Summary Statistics")
 metric_cols = st.columns(5)
-
 with metric_cols[0]:
     selected_date_dt = pd.to_datetime(selected_date)
     delisting_dates = pd.to_datetime(filtered['Delisting Date'], errors='coerce')
@@ -356,7 +436,7 @@ with metric_cols[0]:
     ]
     st.markdown(
         f"""<div class="metric-card">
-            <h4>Number of ETFs</h4>
+            <h4>📊 Number of ETFs</h4>
             <h2>{len(active_etfs):,}</h2>
         </div>""",
         unsafe_allow_html=True
@@ -366,7 +446,7 @@ with metric_cols[1]:
     effective_aum = filtered['AUM'].sum()
     st.markdown(
         f"""<div class="metric-card">
-            <h4>Total AUM</h4>
+            <h4>💰 Total AUM</h4>
             <h2>${effective_aum/1e6:,.1f}M</h2>
         </div>""",
         unsafe_allow_html=True
@@ -376,7 +456,7 @@ with metric_cols[2]:
     effective_monthly_flow = filtered['Monthly Flow'].sum()
     st.markdown(
         f"""<div class="metric-card">
-            <h4>Total Monthly Flow</h4>
+            <h4>📅 Monthly Flow</h4>
             <h2>${effective_monthly_flow/1e6:,.1f}M</h2>
         </div>""",
         unsafe_allow_html=True
@@ -386,7 +466,7 @@ with metric_cols[3]:
     effective_ttm_flow = filtered['TTM Net Flow'].sum()
     st.markdown(
         f"""<div class="metric-card">
-            <h4>Total TTM Flow</h4>
+            <h4>📈 TTM Flow</h4>
             <h2>${effective_ttm_flow/1e6:,.1f}M</h2>
         </div>""",
         unsafe_allow_html=True
@@ -396,7 +476,7 @@ with metric_cols[4]:
     effective_ytd_flow = filtered['YTD Flow'].sum()
     st.markdown(
         f"""<div class="metric-card">
-            <h4>Total YTD Flow</h4>
+            <h4>📊 YTD Flow</h4>
             <h2>${effective_ytd_flow/1e6:,.1f}M</h2>
         </div>""",
         unsafe_allow_html=True
@@ -544,37 +624,37 @@ st.markdown("### Secondary Category Analysis")
 # Use the full dataframe for the selected date for this analysis section
 analysis_base_df = df.copy()
 
-all_categories     = sorted(analysis_base_df['Category'].unique())
-all_subcategories  = sorted(analysis_base_df['Secondary Category'].unique())
-analysis_search_cat = st.text_input("Search for Categories for Analysis", key="analysis_cat_search")
-if st.button("Select All Matching Categories for Analysis", key="select_all_analysis_cat"):
-    matching = [cat for cat in all_categories if analysis_search_cat.lower() in cat.lower()]
-    st.session_state["cat_analysis"] = matching
+col1_sec, col2_sec = st.columns(2)
 
-default_analysis_cats = st.session_state.get("cat_analysis", [])
-selected_categories    = st.multiselect(
-    "Select Category(s) for Analysis",
-    options=all_categories,
-    default=[],
-    help="Pick one or more primary Categories (leave empty to include all).",
-    key="cat_analysis"
-)
+with col1_sec:
+    all_categories = sorted(analysis_base_df['Category'].unique())
+    analysis_search_cat = st.text_input("🔍 Search Category for Analysis", key="analysis_cat_search")
+    if st.button("➕ All Categories", key="select_all_analysis_cat"):
+        matching = [cat for cat in all_categories if analysis_search_cat.lower() in cat.lower()]
+        st.session_state["cat_analysis"] = matching
+    default_analysis_cats = st.session_state.get("cat_analysis", [])
+    selected_categories = st.multiselect(
+        "Select Category(s) for Analysis",
+        options=all_categories,
+        default=default_analysis_cats,
+        help="Pick one or more primary Categories (leave empty to include all).",
+        key="cat_analysis"
+    )
 
-
-
-analysis_search_subcat = st.text_input("Search for Subcategories for Analysis", key="analysis_subcat_search")
-if st.button("Select All Matching Subcategories for Analysis", key="select_all_analysis_subcat"):
-    matching = [cat for cat in all_subcategories if analysis_search_subcat.lower() in cat.lower()]
-    st.session_state["subcat_analysis"] = matching
-
-default_analysis_subcats = st.session_state.get("subcat_analysis", [])
-selected_subcategories = st.multiselect(
-    "Select Secondary Category(s) for Analysis",
-    options=all_subcategories,
-    default=[],
-    help="Pick one or more secondary Categories (leave empty to include all).",
-    key="subcat_analysis"
-)
+with col2_sec:
+    all_subcategories = sorted(analysis_base_df['Secondary Category'].unique())
+    analysis_search_subcat = st.text_input("🔍 Search Subcategory for Analysis", key="analysis_subcat_search")
+    if st.button("➕ All Subcategories", key="select_all_analysis_subcat"):
+        matching = [subcat for subcat in all_subcategories if analysis_search_subcat.lower() in subcat.lower()]
+        st.session_state["subcat_analysis"] = matching
+    default_analysis_subcats = st.session_state.get("subcat_analysis", [])
+    selected_subcategories = st.multiselect(
+        "Select Secondary Category(s) for Analysis",
+        options=all_subcategories,
+        default=default_analysis_subcats,
+        help="Pick one or more secondary Categories (leave empty to include all).",
+        key="subcat_analysis"
+    )
 
 analysis_df = analysis_base_df.copy()
 
@@ -658,14 +738,7 @@ else:
 
 st.plotly_chart(secondary_fig, use_container_width=True)
 
-csv_data = filtered.to_csv(index=False).encode("utf-8")
-st.markdown("### Export Data")
-st.download_button(
-    label="Download Filtered Dataset as CSV",
-    data=csv_data,
-    file_name=f"filtered_dataset_{selected_date}.csv",
-    mime="text/csv"
-)
+
 #                 st.error(f"Oops, couldn’t get an answer: {e}")
 #     else:
 #         st.warning("Please type a question first.")
