@@ -21,19 +21,43 @@ st.markdown(
     """
     <style>
     .stApp { 
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        background: linear-gradient(135deg, #f5f7fa 0%, #e8f4f8 100%);
+    }
+    .global-x-logo {
+        text-align: center;
+        margin-bottom: 30px;
+        padding: 20px 0;
+        background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    .global-x-main {
+        font-size: 48px;
+        font-weight: bold;
+        color: #FF5722;
+        font-family: 'Arial', 'Helvetica', sans-serif;
+        letter-spacing: 3px;
+        margin: 0;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+    }
+    .global-x-subtitle {
+        font-size: 18px;
+        color: #666;
+        font-family: 'Arial', 'Helvetica', sans-serif;
+        margin: 5px 0 0 0;
+        font-weight: normal;
     }
     h1 { 
-        color: #2C3E50; 
+        color: #00695C; 
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         text-align: center;
         padding: 20px 0;
         margin-bottom: 30px;
     }
     h3 {
-        color: #34495E;
+        color: #00695C;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        border-bottom: 2px solid #3498DB;
+        border-bottom: 2px solid #FF5722;
         padding-bottom: 10px;
         margin-top: 40px;
         margin-bottom: 20px;
@@ -44,20 +68,22 @@ st.markdown(
         border-radius: 15px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         text-align: center;
-        border-left: 4px solid #3498DB;
+        border-left: 4px solid #FF5722;
         transition: transform 0.2s ease;
     }
     .metric-card:hover {
         transform: translateY(-5px);
         box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        border-left-color: #00695C;
     }
     .step-instructions {
-        background: linear-gradient(145deg, #E8F6F3 0%, #D5EFEB 100%);
+        background: linear-gradient(145deg, #FFF3E0 0%, #FFE0B2 100%);
         padding: 20px;
         border-radius: 10px;
-        border-left: 4px solid #27AE60;
+        border-left: 4px solid #FF5722;
         margin-bottom: 30px;
         font-size: 16px;
+        color: #00695C;
     }
     .filters-container {
         background: white;
@@ -65,6 +91,7 @@ st.markdown(
         border-radius: 15px;
         box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         margin-bottom: 30px;
+        border-top: 3px solid #FF5722;
     }
     /* Multiselect improvements */
     .stMultiSelect > div > div > div {
@@ -73,8 +100,8 @@ st.markdown(
         transition: border-color 0.3s ease;
     }
     .stMultiSelect > div > div > div:focus-within {
-        border-color: #3498DB;
-        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        border-color: #FF5722;
+        box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.1);
     }
     /* Selectbox improvements */
     .stSelectbox > div > div > div {
@@ -83,8 +110,12 @@ st.markdown(
         transition: border-color 0.3s ease;
     }
     .stSelectbox > div > div > div:focus-within {
-        border-color: #3498DB;
-        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        border-color: #FF5722;
+        box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.1);
+    }
+    /* Checkbox styling */
+    .stCheckbox > label > div {
+        color: #00695C;
     }
     </style>
     """,
@@ -276,6 +307,17 @@ flow_date_cols = [c for c in flow_df_raw.columns if c != 'ETF']
 available_dates = sorted(pd.to_datetime(flow_date_cols, errors='coerce').dropna(), reverse=True)
 available_date_strs = [d.strftime('%Y-%m-%d') for d in available_dates]
 
+# Add Global X logo
+st.markdown(
+    """
+    <div class="global-x-logo">
+        <div class="global-x-main">GLOBAL X</div>
+        <div class="global-x-subtitle">by Mirae Asset</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 st.title("📊 ETF Bubble Chart Dashboard")
 st.markdown(
     """
@@ -306,10 +348,11 @@ df = process_data_for_date(selected_date, funds_df_raw, aum_df_raw, flow_df_raw,
 with st.sidebar:
     st.markdown(
         """
-        <div style="background: linear-gradient(145deg, #E8F4FD 0%, #D1E7DD 100%); 
-                    padding: 15px; border-radius: 10px; margin-bottom: 20px;">
-            <h2 style="color: #2C3E50; margin: 0;">🤖 GX Chat</h2>
-            <p style="color: #6C757D; margin: 5px 0 0 0; font-size: 14px;">
+        <div style="background: linear-gradient(145deg, #FFF3E0 0%, #FFE0B2 100%); 
+                    padding: 15px; border-radius: 10px; margin-bottom: 20px;
+                    border-left: 4px solid #FF5722;">
+            <h2 style="color: #00695C; margin: 0;">🤖 GX Chat</h2>
+            <p style="color: #666; margin: 5px 0 0 0; font-size: 14px;">
                 Ask questions about your ETF data
             </p>
         </div>
