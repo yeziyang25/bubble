@@ -125,7 +125,7 @@ st.markdown(
 
 onedrive_url = "https://globalxcanada-my.sharepoint.com/:x:/g/personal/eden_ye_globalx_ca/Eas53aR4lPlDn0ZlNHgX4ZABPDpH1Ign2mH4NGcJ0Hb80w?download=1"
 
-sample_data_path = "sample_data/classification - data.xlsx"
+sample_data_path = "sample_data/etf_data.xlsx"
 
 @st.cache_data
 def load_raw_data(xlsx_path: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
