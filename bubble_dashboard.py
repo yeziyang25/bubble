@@ -20,14 +20,71 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    .stApp { background: #f9f9f9; }
-    h1 { color: #2C3E50; }
-    .metric-card {
-        background-color: white;
-        padding: 15px;
-        border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    .stApp { 
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    }
+    h1 { 
+        color: #2C3E50; 
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         text-align: center;
+        padding: 20px 0;
+        margin-bottom: 30px;
+    }
+    h3 {
+        color: #34495E;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        border-bottom: 2px solid #3498DB;
+        padding-bottom: 10px;
+        margin-top: 40px;
+        margin-bottom: 20px;
+    }
+    .metric-card {
+        background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        text-align: center;
+        border-left: 4px solid #3498DB;
+        transition: transform 0.2s ease;
+    }
+    .metric-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+    .step-instructions {
+        background: linear-gradient(145deg, #E8F6F3 0%, #D5EFEB 100%);
+        padding: 20px;
+        border-radius: 10px;
+        border-left: 4px solid #27AE60;
+        margin-bottom: 30px;
+        font-size: 16px;
+    }
+    .filters-container {
+        background: white;
+        padding: 25px;
+        border-radius: 15px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        margin-bottom: 30px;
+    }
+    /* Multiselect improvements */
+    .stMultiSelect > div > div > div {
+        border-radius: 8px;
+        border: 2px solid #BDC3C7;
+        transition: border-color 0.3s ease;
+    }
+    .stMultiSelect > div > div > div:focus-within {
+        border-color: #3498DB;
+        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+    }
+    /* Selectbox improvements */
+    .stSelectbox > div > div > div {
+        border-radius: 8px;
+        border: 2px solid #BDC3C7;
+        transition: border-color 0.3s ease;
+    }
+    .stSelectbox > div > div > div:focus-within {
+        border-color: #3498DB;
+        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
     }
     </style>
     """,
@@ -222,27 +279,43 @@ available_date_strs = [d.strftime('%Y-%m-%d') for d in available_dates]
 st.title("📊 ETF Bubble Chart Dashboard")
 st.markdown(
     """
-    • **Step 1:** pick a *Date* for analysis.
-    • **Step 2:** pick one or more *Category* values below.  
-    • **Step 3:** then pick any relevant *Secondary Category* values.  
-    """
+    <div class="step-instructions">
+    <strong>📋 How to Use This Dashboard:</strong><br/>
+    <strong>Step 1:</strong> Select a <em>Date</em> for analysis<br/>
+    <strong>Step 2:</strong> Choose one or more <em>Categories</em> using the search-enabled selector<br/>
+    <strong>Step 3:</strong> Optionally select <em>Secondary Categories</em> to further refine your analysis
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
-st.markdown("### Filters")
-col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
+st.markdown('<div class="filters-container">', unsafe_allow_html=True)
+st.markdown("### 🎛️ Filters")
+col1, col2, col3, col4 = st.columns([2, 2.5, 2.5, 1.5])
 
 with col1:
     selected_date = st.selectbox(
-        "Select Analysis Date",
+        "📅 Analysis Date",
         options=available_date_strs,
         index=0,
-        help="The dashboard will be run based on this date."
+        help="Select the date for your analysis"
     )
 
 df = process_data_for_date(selected_date, funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw)
 
 with st.sidebar:
-    st.header("🤖 GX Chat")
+    st.markdown(
+        """
+        <div style="background: linear-gradient(145deg, #E8F4FD 0%, #D1E7DD 100%); 
+                    padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+            <h2 style="color: #2C3E50; margin: 0;">🤖 GX Chat</h2>
+            <p style="color: #6C757D; margin: 5px 0 0 0; font-size: 14px;">
+                Ask questions about your ETF data
+            </p>
+        </div>
+        """, 
+        unsafe_allow_html=True
+    )
     
     # Add context refresh button
     chat_col1, chat_col2 = st.columns([3, 1])
@@ -289,7 +362,9 @@ with st.sidebar:
 
 
 with col4:
-    show_leveraged_only = st.checkbox("Show Lightly Leveraged Only")
+    show_leveraged_only = st.checkbox("⚖️ Show Lightly Leveraged Only")
+
+st.markdown('</div>', unsafe_allow_html=True)
 
 filtered = df.copy()
 filtered = df[df['Inception'] <= selected_date].copy()
@@ -297,20 +372,15 @@ filtered = df[df['Inception'] <= selected_date].copy()
 if show_leveraged_only:
     filtered = filtered[filtered['Lightly Leveraged Indicator']]
 
-#multi
 with col2:
     all_cats = sorted(filtered['Category'].unique())
-    search_cat = st.text_input("Search for Categories", key="cat_search")
-    if st.button("Select All Matching Categories", key="select_matching_cat"):
-        matching = [cat for cat in all_cats if search_cat.lower() in cat.lower()]
-        st.session_state["category_select"] = matching
-    default_cats = st.session_state.get("category_select", [])
     selected_cats = st.multiselect(
-        "Category",
+        "📊 Category",
         options=all_cats,
-        default=default_cats,
-        help="Pick one or more categories (empty = no category filter unless secondary is chosen)",
-        key="category_select" 
+        default=[],
+        help="🔍 Start typing to search and select categories",
+        key="category_select",
+        placeholder="Search and select categories..."
     )
 
 with col3:
@@ -318,17 +388,13 @@ with col3:
         options = sorted(filtered[filtered['Category'].isin(selected_cats)]['Secondary Category'].unique())
     else:
         options = sorted(filtered['Secondary Category'].unique())
-    search_subcat = st.text_input("Search for Secondary Categories", key="subcat_search")
-    if st.button("Select All Matching Secondary Categories", key="select_matching_subcat"):
-        matching = [subcat for subcat in options if search_subcat.lower() in subcat.lower()]
-        st.session_state["secondary_category_select"] = matching
-    default_subcats = st.session_state.get("secondary_category_select", [])
     selected_subcats = st.multiselect(
-        "Secondary Category",
+        "🎯 Secondary Category",
         options=options,
-        default=default_subcats,
-        help="Pick one or more sub-categories",
-        key="secondary_category_select"  
+        default=[],
+        help="🔍 Start typing to search and select secondary categories",
+        key="secondary_category_select",
+        placeholder="Search and select secondary categories..."
     )
 
 if selected_cats:
@@ -339,7 +405,7 @@ if selected_subcats:
 is_showing_all = not (selected_cats or selected_subcats or show_leveraged_only)
 filtered = filtered.copy()
 filtered['AUM'] = filtered['AUM'].fillna(0)
-st.markdown("### Summary Statistics")
+st.markdown("### 📈 Summary Statistics")
 metric_cols = st.columns(5)
 
 with metric_cols[0]:
@@ -352,7 +418,7 @@ with metric_cols[0]:
     ]
     st.markdown(
         f"""<div class="metric-card">
-            <h4>Number of ETFs</h4>
+            <h4>📊 Number of ETFs</h4>
             <h2>{len(active_etfs):,}</h2>
         </div>""",
         unsafe_allow_html=True
@@ -362,7 +428,7 @@ with metric_cols[1]:
     effective_aum = filtered['AUM'].sum()
     st.markdown(
         f"""<div class="metric-card">
-            <h4>Total AUM</h4>
+            <h4>💰 Total AUM</h4>
             <h2>${effective_aum/1e6:,.1f}M</h2>
         </div>""",
         unsafe_allow_html=True
@@ -372,7 +438,7 @@ with metric_cols[2]:
     effective_monthly_flow = filtered['Monthly Flow'].sum()
     st.markdown(
         f"""<div class="metric-card">
-            <h4>Total Monthly Flow</h4>
+            <h4>📅 Monthly Flow</h4>
             <h2>${effective_monthly_flow/1e6:,.1f}M</h2>
         </div>""",
         unsafe_allow_html=True
@@ -382,7 +448,7 @@ with metric_cols[3]:
     effective_ttm_flow = filtered['TTM Net Flow'].sum()
     st.markdown(
         f"""<div class="metric-card">
-            <h4>Total TTM Flow</h4>
+            <h4>📈 TTM Flow</h4>
             <h2>${effective_ttm_flow/1e6:,.1f}M</h2>
         </div>""",
         unsafe_allow_html=True
@@ -392,12 +458,12 @@ with metric_cols[4]:
     effective_ytd_flow = filtered['YTD Flow'].sum()
     st.markdown(
         f"""<div class="metric-card">
-            <h4>Total YTD Flow</h4>
+            <h4>📊 YTD Flow</h4>
             <h2>${effective_ytd_flow/1e6:,.1f}M</h2>
         </div>""",
         unsafe_allow_html=True
     )
-st.markdown("### ETF Flows Bubble Chart")
+st.markdown("### 🫧 ETF Flows Bubble Chart")
 
 def create_figure(data, show_text_labels=False):
     
@@ -535,42 +601,34 @@ else:
 
 st.plotly_chart(fig, use_container_width=True)
 
-st.markdown("### Secondary Category Analysis")
+st.markdown("### 🔍 Secondary Category Analysis")
 
 # Use the full dataframe for the selected date for this analysis section
 analysis_base_df = df.copy()
 
-all_categories     = sorted(analysis_base_df['Category'].unique())
-all_subcategories  = sorted(analysis_base_df['Secondary Category'].unique())
-analysis_search_cat = st.text_input("Search for Categories for Analysis", key="analysis_cat_search")
-if st.button("Select All Matching Categories for Analysis", key="select_all_analysis_cat"):
-    matching = [cat for cat in all_categories if analysis_search_cat.lower() in cat.lower()]
-    st.session_state["cat_analysis"] = matching
+analysis_col1, analysis_col2 = st.columns(2)
 
-default_analysis_cats = st.session_state.get("cat_analysis", [])
-selected_categories    = st.multiselect(
-    "Select Category(s) for Analysis",
-    options=all_categories,
-    default=[],
-    help="Pick one or more primary Categories (leave empty to include all).",
-    key="cat_analysis"
-)
+with analysis_col1:
+    all_categories     = sorted(analysis_base_df['Category'].unique())
+    selected_categories    = st.multiselect(
+        "Select Category(s) for Analysis",
+        options=all_categories,
+        default=[],
+        help="🔍 Start typing to search and select categories for analysis",
+        key="cat_analysis",
+        placeholder="Search and select categories..."
+    )
 
-
-
-analysis_search_subcat = st.text_input("Search for Subcategories for Analysis", key="analysis_subcat_search")
-if st.button("Select All Matching Subcategories for Analysis", key="select_all_analysis_subcat"):
-    matching = [cat for cat in all_subcategories if analysis_search_subcat.lower() in cat.lower()]
-    st.session_state["subcat_analysis"] = matching
-
-default_analysis_subcats = st.session_state.get("subcat_analysis", [])
-selected_subcategories = st.multiselect(
-    "Select Secondary Category(s) for Analysis",
-    options=all_subcategories,
-    default=[],
-    help="Pick one or more secondary Categories (leave empty to include all).",
-    key="subcat_analysis"
-)
+with analysis_col2:
+    all_subcategories  = sorted(analysis_base_df['Secondary Category'].unique())
+    selected_subcategories = st.multiselect(
+        "Select Secondary Category(s) for Analysis",
+        options=all_subcategories,
+        default=[],
+        help="🔍 Start typing to search and select secondary categories for analysis",
+        key="subcat_analysis",
+        placeholder="Search and select secondary categories..."
+    )
 
 analysis_df = analysis_base_df.copy()
 
@@ -655,7 +713,7 @@ else:
 st.plotly_chart(secondary_fig, use_container_width=True)
 
 csv_data = filtered.to_csv(index=False).encode("utf-8")
-st.markdown("### Export Data")
+st.markdown("### 💾 Export Data")
 st.download_button(
     label="Download Filtered Dataset as CSV",
     data=csv_data,
