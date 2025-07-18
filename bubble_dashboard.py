@@ -694,8 +694,8 @@ secondary_fig = px.scatter(
     x='Latest Performance',
     y='Flow Percentage',
     size='AUM',
-    color=group_col,
-    text=group_col,
+    color='Secondary Category',
+    text='Secondary Category',
     hover_data={
         'AUM':               ':,.0f',
         'Prev AUM':          ':,.0f',
