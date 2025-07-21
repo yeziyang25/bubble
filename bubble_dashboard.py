@@ -343,7 +343,7 @@ with st.sidebar:
         ans = ask_gemma(
             question=user, 
             df=df,
-            max_rows=500  #subject to change. put as 500 to save some tokens limits
+            max_rows=2000  #subject to change. put as 500 to save some tokens limits
         )
         
         # Update conversation history for context
