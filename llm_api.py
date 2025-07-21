@@ -52,7 +52,7 @@ def ask_gemma(
     data_json = df2.to_json(orient="records", date_format="iso")
 
     messages = [
-        {"role": "system", "content": "You are a data‑savvy assistant for Canadian ETFs."},
+        {"role": "system", "content": "You are a professional analyst in the Canadian ETFs Industry. You will try your best to answer the questions using the information provided to you and your own domain knowledge。"},
         {"role": "user",   "content": f"Data slice:\n{data_json}\n\nQ: {question}"}
     ]
     resp = client.chat.completions.create(
