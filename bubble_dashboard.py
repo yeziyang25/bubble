@@ -314,6 +314,11 @@ df = process_data_for_date(selected_date, funds_df_raw, aum_df_raw, flow_df_raw,
 with st.sidebar:
     st.header("🤖 GX Chat")
     
+    # New: Let the user provide their API token
+    api_token = st.text_input("Enter OpenAI API Token", type="password", key="api_token")
+    if not api_token:
+        st.warning("Please enter your API Token to enable chat functionality.")
+    
     # Add context refresh button
     chat_col1, chat_col2 = st.columns([3, 1])
     with chat_col2:
@@ -335,27 +340,32 @@ with st.sidebar:
     
     # input
     if user := st.chat_input("Ask me…"):
-        st.session_state.history.append({"role":"user","content":user})
-        with st.chat_message("assistant"):
-            st.markdown("…")
-        
-        # Use context-aware function
-        ans = ask_gemma(
-            question=user, 
-            df=df,
-            max_rows=2000  #subject to change. put as 500 to save some tokens limits
-        )
-        
-        # Update conversation history for context
-        st.session_state.conversation_history.append({"role": "user", "content": user})
-        st.session_state.conversation_history.append({"role": "assistant", "content": ans})
-        
-        # Keep conversation history manageable (last 10 exchanges)
-        if len(st.session_state.conversation_history) > 20:
-            st.session_state.conversation_history = st.session_state.conversation_history[-20:]
-        
-        st.session_state.history.append({"role":"assistant","content":ans})
-        st.rerun()
+        # Ensure token is provided before processing the query
+        if not st.session_state.get("api_token"):
+            st.error("API Token is required to use the chat functionality.")
+        else:
+            st.session_state.history.append({"role": "user", "content": user})
+            with st.chat_message("assistant"):
+                st.markdown("…")
+            
+            # Pass the user's token along to the ask_gemma function
+            ans = ask_gemma(
+                question=user, 
+                df=df,
+                max_rows=2000 ,
+                token=st.session_state.get("api_token")
+            )
+            
+            # Update conversation history for context
+            st.session_state.conversation_history.append({"role": "user", "content": user})
+            st.session_state.conversation_history.append({"role": "assistant", "content": ans})
+            
+            # Keep conversation history manageable (last 10 exchanges)
+            if len(st.session_state.conversation_history) > 20:
+                st.session_state.conversation_history = st.session_state.conversation_history[-20:]
+            
+            st.session_state.history.append({"role": "assistant", "content": ans})
+            st.rerun()
 
 
 with col4:
@@ -740,6 +750,3 @@ else:
 st.plotly_chart(secondary_fig, use_container_width=True)
 
 
-#                 st.error(f"Oops, couldn’t get an answer: {e}")
-#     else:
-#         st.warning("Please type a question first.")
