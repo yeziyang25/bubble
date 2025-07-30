@@ -338,29 +338,27 @@ with st.sidebar:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
     
-    # input
+    # input block for GX Chat
     if user := st.chat_input("Ask me…"):
-        # Ensure token is provided before processing the query
         if not st.session_state.get("api_token"):
             st.error("API Token is required to use the chat functionality.")
         else:
             st.session_state.history.append({"role": "user", "content": user})
             with st.chat_message("assistant"):
                 st.markdown("…")
-            
-            # Pass the user's token along to the ask_gemma function
-            ans = ask_gemma(
-                question=user, 
-                df=df,
-                max_rows=2000 ,
-                token=st.session_state.get("api_token")
-            )
-            
-            # Update conversation history for context
+            try:
+                ans = ask_gemma(
+                    question=user, 
+                    df=df,
+                    max_rows=2000,
+                    token=st.session_state.get("api_token", "") or ""
+                )
+            except Exception as e:
+                ans = ("It seems there was an issue with your API token. "
+                       "Please check your token or try again with a valid one. You can access more information regarding the API token [here](https://platform.openai.com/docs/api-reference/authentication).")
             st.session_state.conversation_history.append({"role": "user", "content": user})
             st.session_state.conversation_history.append({"role": "assistant", "content": ans})
             
-            # Keep conversation history manageable (last 10 exchanges)
             if len(st.session_state.conversation_history) > 20:
                 st.session_state.conversation_history = st.session_state.conversation_history[-20:]
             
