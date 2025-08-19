@@ -126,22 +126,35 @@ MONTHLY_COLOR_INFLOW = "#4472C4"
 MONTHLY_COLOR_OUTFLOW = "#ED7D31"  
 YTD_COLOR = "#FFC000"              
 
-def _to_millions(series: pd.Series) -> np.ndarray:
-    return series.astype(float) / SCALE_DIVISOR
-
 def make_bar_chart(df: pd.DataFrame, title: str, monthly_color: str, ytd_color: str):
+    def _to_millions(vals):
+        return [float(v) / 1e6 for v in vals]
+
+    # helper to insert line breaks in labels
+    def wrap_labels(labels, max_words=2):
+        wrapped = []
+        for lbl in labels:
+            words = lbl.split()
+            lines = []
+            for i in range(0, len(words), max_words):
+                lines.append(" ".join(words[i:i+max_words]))
+            wrapped.append("<br>".join(lines))
+        return wrapped
+
     categories = df.index.tolist()
+    categories_wrapped = wrap_labels(categories, max_words=2)
+
     monthly_vals_mn = _to_millions(df['Monthly Flow'])
     ytd_vals_mn = _to_millions(df['YTD Flow'])
 
     fig = go.Figure()
     fig.add_trace(go.Bar(
-        x=categories, y=monthly_vals_mn, name="1 mo flow (mn)",
+        x=categories_wrapped, y=monthly_vals_mn, name="1 mo flow (mn)",
         marker_color=monthly_color,
         text=[f"{v:,.1f}" for v in monthly_vals_mn], textposition="outside"
     ))
     fig.add_trace(go.Bar(
-        x=categories, y=ytd_vals_mn, name="ytd flow (mn)",
+        x=categories_wrapped, y=ytd_vals_mn, name="ytd flow (mn)",
         marker_color=ytd_color,
         text=[f"{v:,.1f}" for v in ytd_vals_mn], textposition="outside"
     ))
@@ -152,11 +165,15 @@ def make_bar_chart(df: pd.DataFrame, title: str, monthly_color: str, ytd_color: 
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         margin=dict(l=10, r=10, t=60, b=10),
     )
-    fig.update_xaxes(title_text=None, tickangle=-20, showline=True, linecolor="#444",showgrid=False,tickfont=dict(size=15))
-    fig.update_yaxes(title_text="Flow (Millions)", tickformat=",.0f",zeroline=True, zerolinecolor="#ddd",
-                     showline=False, linecolor="#444",showgrid=False)
-    
-
+    fig.update_xaxes(
+        title_text=None, tickangle=0,  # keep horizontal now since we wrapped
+        showline=True, linecolor="#444", showgrid=False,
+        tickfont=dict(size=15)
+    )
+    fig.update_yaxes(
+        title_text="Flow (Millions)", tickformat=",.0f", zeroline=True, zerolinecolor="#ddd",
+        showline=False, linecolor="#444", showgrid=False
+    )
 
     return fig
 
@@ -175,8 +192,6 @@ with col2:
     st.subheader("Top 5 Category Outflow")
     fig_outflow = make_bar_chart(top5_outflow, "Top 5 Category Outflow", MONTHLY_COLOR_OUTFLOW, YTD_COLOR)
     st.plotly_chart(fig_outflow, use_container_width=True)
-
-
 
 
 
@@ -397,7 +412,7 @@ top10_ytd_new = (
     .rename(columns={'ETF': 'Ticker', 'YTD Flow': 'Flow'})
 )
 
-# add trend, scale to millions, and mark with 🔶
+
 top10_ytd_new = add_trend_and_scale(top10_ytd_new, normalize=True)
 c3, c4 = st.columns(2)
 with c3:
