@@ -408,7 +408,7 @@ ytd_new = df.loc[
 
 top10_ytd_new = (
     ytd_new
-    .nlargest(15, 'YTD Flow')
+    .nlargest(20, 'YTD Flow')
     .rename(columns={'ETF': 'Ticker', 'YTD Flow': 'Flow'})
 )
 
@@ -424,5 +424,5 @@ with c3:
 with c4:
     render_table_with_spark(
         top10_ytd_new[['Fund Name', 'Ticker', 'Flow', 'AUM', 'Flow Trend (12M)']],
-        f"Top 15 YTD Inflow — Launched in {selected_ts.year}"
+        f"Top 20 YTD Inflow — Launched in {selected_ts.year}"
     )
