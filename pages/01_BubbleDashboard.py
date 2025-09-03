@@ -554,7 +554,7 @@ if is_showing_all_sub:
 else:
     secondary_fig.update_traces(         
         textposition='top center',
-        textfont=dict(size=15, color='black')
+        textfont=dict(size=20, color='black')
     )
     secondary_fig.update_layout(showlegend=False)
 
