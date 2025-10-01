@@ -124,7 +124,49 @@ top5_outflow = category_flow_summary_sorted.head(5)
 SCALE_DIVISOR = 1e6  
 MONTHLY_COLOR_INFLOW = "#4472C4"  
 MONTHLY_COLOR_OUTFLOW = "#ED7D31"  
-YTD_COLOR = "#FFC000"              
+YTD_COLOR = "#FFC000"       
+
+
+
+def make_12m_total_flow_chart(flow_df_raw: pd.DataFrame, available_dates: list[pd.Timestamp], end_ts: pd.Timestamp):
+    months_asc = sorted([d for d in available_dates if d <= end_ts])
+    last_12 = months_asc[-12:] if len(months_asc) >= 12 else months_asc
+
+    last_12_cols = [d.strftime('%Y-%m-%d') for d in last_12]
+
+    if not last_12_cols:
+        return go.Figure()
+
+    monthly_totals = (flow_df_raw[last_12_cols].sum(axis=0) / 1e6).values.tolist()
+
+    x_labels = [d.strftime('%b %Y') for d in last_12]
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=x_labels,
+        y=monthly_totals,
+        name="Net flow (mn)",
+        marker_color="#99f5df",
+        text=[f"{v:,.0f}" for v in monthly_totals],
+        textposition="outside",
+        hovertemplate="<b>%{x}</b><br>Flow: %{y:,.0f} mn<extra></extra>"
+    ))
+    fig.update_layout(
+        plot_bgcolor="white",
+        margin=dict(l=10, r=10, t=60, b=10),
+        barmode="group",
+        bargap=0.3,
+        showlegend=False
+    )
+    fig.update_xaxes(
+        title_text=None, showline=True, linecolor="#444", showgrid=False
+    )
+    fig.update_yaxes(
+        title_text="Flow (Millions)", tickformat=",.0f",
+        zeroline=True, zerolinecolor="#ddd", showgrid=False
+    )
+    return fig
+
 
 def make_bar_chart(df: pd.DataFrame, title: str, monthly_color: str, ytd_color: str):
     def _to_millions(vals):
@@ -180,6 +222,12 @@ def make_bar_chart(df: pd.DataFrame, title: str, monthly_color: str, ytd_color: 
 category_flow_summary_sorted = category_flow_summary.sort_values(by="Monthly Flow")
 top5_inflow = category_flow_summary_sorted.tail(5)
 top5_outflow = category_flow_summary_sorted.head(5)
+
+
+fig_12m = make_12m_total_flow_chart(flow_df_raw, available_dates, selected_ts)
+st.subheader("Past 12 Months — Total ETF Net Flow")
+st.plotly_chart(fig_12m, use_container_width=True)
+
 
 col1, col2 = st.columns(2)
 
