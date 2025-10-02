@@ -98,7 +98,27 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+def compute_trailing_12m_market_flows(
+    process_fn,
+    funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw,
+    available_dates: list[pd.Timestamp],
+    end_ts: pd.Timestamp
+):
+    # last 12 month-end dates up to end_ts
+    months_asc = sorted([d for d in available_dates if d <= end_ts])
+    last_12 = months_asc[-12:] if len(months_asc) >= 12 else months_asc
 
+    labels = []
+    totals_mn = []
+
+    for d in last_12:
+        d_str = d.strftime('%Y-%m-%d')
+        df_m = process_fn(d_str, funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw)
+        total = pd.to_numeric(df_m['Monthly Flow'], errors='coerce').sum()
+        labels.append(d.strftime('%b %Y'))
+        totals_mn.append(float(total) / 1e6)  # scale to millions
+
+    return labels, totals_mn
 
 onedrive_url = "https://globalxcanada-my.sharepoint.com/:x:/g/personal/eden_ye_globalx_ca/Eas53aR4lPlDn0ZlNHgX4ZABPDpH1Ign2mH4NGcJ0Hb80w?download=1"
 
@@ -115,6 +135,14 @@ selected_date = st.selectbox(
 selected_ts = pd.to_datetime(selected_date)
 
 df = process_data_for_date(selected_date, funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw)
+
+labels_12m, totals_12m_mn = compute_trailing_12m_market_flows(
+    process_data_for_date,
+    funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw,
+    available_dates, selected_ts
+)
+
+
 category_flow_summary = df.groupby("Category")[['Monthly Flow','YTD Flow']].sum()
 
 category_flow_summary_sorted = category_flow_summary.sort_values(by='Monthly Flow')
@@ -128,46 +156,36 @@ YTD_COLOR = "#FFC000"
 
 
 
-def make_12m_total_flow_chart(flow_df_raw: pd.DataFrame, available_dates: list[pd.Timestamp], end_ts: pd.Timestamp):
-    months_asc = sorted([d for d in available_dates if d <= end_ts])
-    last_12 = months_asc[-12:] if len(months_asc) >= 12 else months_asc
 
-    last_12_cols = [d.strftime('%Y-%m-%d') for d in last_12]
 
-    if not last_12_cols:
-        return go.Figure()
-
-    monthly_totals = (flow_df_raw[last_12_cols].sum(axis=0) / 1e6).values.tolist()
-
-    x_labels = [d.strftime('%b %Y') for d in last_12]
-
+def make_single_series_bar(x_labels, y_vals_mn, title: str, color: str):
     fig = go.Figure()
     fig.add_trace(go.Bar(
         x=x_labels,
-        y=monthly_totals,
+        y=y_vals_mn,
         name="Net flow (mn)",
-        marker_color="#99f5df",
-        text=[f"{v:,.0f}" for v in monthly_totals],
+        marker_color=color,
+        text=[f"{v:,.0f}" for v in y_vals_mn],
         textposition="outside",
         hovertemplate="<b>%{x}</b><br>Flow: %{y:,.0f} mn<extra></extra>"
     ))
     fig.update_layout(
+        title=title, title_x=0.5, barmode="group", bargap=0.3,
         plot_bgcolor="white",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         margin=dict(l=10, r=10, t=60, b=10),
-        barmode="group",
-        bargap=0.3,
-        showlegend=False
     )
     fig.update_xaxes(
-        title_text=None, showline=True, linecolor="#444", showgrid=False
+        title_text=None, tickangle=0,
+        showline=True, linecolor="#444", showgrid=False,
+        tickfont=dict(size=15)
     )
     fig.update_yaxes(
         title_text="Flow (Millions)", tickformat=",.0f",
-        zeroline=True, zerolinecolor="#ddd", showgrid=False
+        zeroline=True, zerolinecolor="#ddd",
+        showline=False, linecolor="#444", showgrid=False
     )
     return fig
-
-
 def make_bar_chart(df: pd.DataFrame, title: str, monthly_color: str, ytd_color: str):
     def _to_millions(vals):
         return [float(v) / 1e6 for v in vals]
@@ -224,7 +242,12 @@ top5_inflow = category_flow_summary_sorted.tail(5)
 top5_outflow = category_flow_summary_sorted.head(5)
 
 
-fig_12m = make_12m_total_flow_chart(flow_df_raw, available_dates, selected_ts)
+fig_12m = make_single_series_bar(
+    labels_12m,
+    totals_12m_mn,
+    "Past 12 Months — Total ETF Net Flow (Adjusted)",
+    MONTHLY_COLOR_INFLOW
+)
 st.subheader("Past 12 Months — Total ETF Net Flow")
 st.plotly_chart(fig_12m, use_container_width=True)
 
