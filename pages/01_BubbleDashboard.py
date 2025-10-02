@@ -335,7 +335,7 @@ def create_figure(data, show_text_labels=False):
     )
     
     if show_text_labels:
-        fig.update_traces(textposition='bottom center', textfont=dict(size=12, color='black'))
+        fig.update_traces(textposition='bottom center', textfont=dict(size=20, color='black'))
         fig.update_layout(showlegend=False)
     else:
         fig.update_layout(showlegend=True)
@@ -389,7 +389,7 @@ elif show_leveraged_only:
         height=700,
     )
     fig.update_layout(showlegend=False)
-    fig.update_traces(textposition='bottom center', textfont=dict(size=12, color='black'))
+    fig.update_traces(textposition='bottom center', textfont=dict(size=20, color='black'))
     fig.update_layout(
         title={
             'text': "ETF Flows vs. AUM Bubble Chart",
@@ -427,7 +427,7 @@ else:
         height=700
     )
     fig.update_layout(showlegend=False)
-    fig.update_traces(textposition='bottom center', textfont=dict(size=12, color='black'))
+    fig.update_traces(textposition='bottom center', textfont=dict(size=20, color='black'))
     
     fig.update_layout(
         title={
