@@ -129,6 +129,7 @@ with col1:
     )
 
 df = process_data_for_date(selected_date, funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw)
+st.dataframe(df)
 with st.sidebar:
     st.header("🤖 GX Chat")
     
