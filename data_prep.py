@@ -115,7 +115,7 @@ def process_data_for_date(selected_date_str: str, funds_df: pd.DataFrame, aum_df
 
     af = aum_df_processed.merge(flow_df[['ETF', 'Monthly Flow', 'TTM Net Flow', 'YTD Flow']], on='ETF', how='left')
     afm = af.merge(
-        funds_df[['Ticker', 'Fund Name','Inception', 'Category', 'Secondary Category', 'Delisting Date', 'Indicator']],
+        funds_df[['Ticker', 'Fund Name','Inception', 'Category', 'Secondary Category', 'Delisting Date', 'Indicator','ETF Provider']],
         left_on='ETF',
         right_on='Ticker',
         how='left'
@@ -160,7 +160,8 @@ def process_data_for_date(selected_date_str: str, funds_df: pd.DataFrame, aum_df
             'TTM Net Flow': base['TTM Net Flow'],
             'YTD Flow': base['YTD Flow'],
             'Latest Performance': base['Latest Performance'],
-            'Lightly Leveraged Indicator': bool(base['Lightly Leveraged Indicator'])
+            'Lightly Leveraged Indicator': bool(base['Lightly Leveraged Indicator']),
+            'ETF Provider': base['ETF Provider']
         })
 
     if not paired_rows.empty:
@@ -175,13 +176,13 @@ def process_data_for_date(selected_date_str: str, funds_df: pd.DataFrame, aum_df
         combined_pairs = pd.DataFrame(columns=[
             'ETF', 'Fund Name', 'Category', 'Secondary Category', 'Delisting Date',
             'Indicator', 'AUM', 'Prev AUM', 'Monthly Flow', 'TTM Net Flow',
-            'YTD Flow', 'Latest Performance', 'Lightly Leveraged Indicator', 'Inception'
+            'YTD Flow', 'Latest Performance', 'Lightly Leveraged Indicator', 'Inception','ETF Provider'
         ])
     
     keep_cols = [
         'ETF', 'Fund Name', 'Category', 'Secondary Category', 'Delisting Date',
         'Indicator', 'AUM', 'Prev AUM', 'Monthly Flow', 'TTM Net Flow',
-        'YTD Flow', 'Latest Performance', 'Lightly Leveraged Indicator','Inception'
+        'YTD Flow', 'Latest Performance', 'Lightly Leveraged Indicator','Inception','ETF Provider'
     ]
     single_trimmed = single_rows[keep_cols].copy()
     final_df = pd.concat([single_trimmed, combined_pairs], ignore_index=True)
