@@ -226,7 +226,7 @@ def make_bar_chart(df: pd.DataFrame, title: str, monthly_color: str, ytd_color: 
         margin=dict(l=10, r=10, t=60, b=10),
     )
     fig.update_xaxes(
-        title_text=None, tickangle=0, # keep horizontal now since we wrapped
+        title_text=None, tickangle=30, # keep horizontal now since we wrapped
         showline=True, linecolor="#444", showgrid=False,
         tickfont=dict(size=12)
     )
