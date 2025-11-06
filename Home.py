@@ -228,7 +228,7 @@ def make_bar_chart(df: pd.DataFrame, title: str, monthly_color: str, ytd_color: 
     fig.update_xaxes(
         title_text=None, tickangle=0, # keep horizontal now since we wrapped
         showline=True, linecolor="#444", showgrid=False,
-        tickfont=dict(size=8)
+        tickfont=dict(size=12)
     )
     fig.update_yaxes(
         title_text="Flow (Millions)", tickformat=",.0f", zeroline=True, zerolinecolor="#ddd",
