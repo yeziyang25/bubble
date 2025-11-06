@@ -146,8 +146,8 @@ labels_12m, totals_12m_mn = compute_trailing_12m_market_flows(
 category_flow_summary = df.groupby("Category")[['Monthly Flow','YTD Flow']].sum()
 
 category_flow_summary_sorted = category_flow_summary.sort_values(by='Monthly Flow')
-top5_inflow = category_flow_summary_sorted.tail(5)
-top5_outflow = category_flow_summary_sorted.head(5)
+top10_inflow = category_flow_summary_sorted.tail(10)
+top10_outflow = category_flow_summary_sorted.head(10)
 
 SCALE_DIVISOR = 1e6  
 MONTHLY_COLOR_INFLOW = "#4472C4"  
@@ -238,8 +238,8 @@ def make_bar_chart(df: pd.DataFrame, title: str, monthly_color: str, ytd_color: 
     return fig
 
 category_flow_summary_sorted = category_flow_summary.sort_values(by="Monthly Flow")
-top5_inflow = category_flow_summary_sorted.tail(5)
-top5_outflow = category_flow_summary_sorted.head(5)
+top10_inflow = category_flow_summary_sorted.tail(10)
+top10_outflow = category_flow_summary_sorted.head(10)
 
 
 fig_12m = make_single_series_bar(
@@ -256,12 +256,12 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("Top 5 Category Inflow")
-    fig_inflow = make_bar_chart(top5_inflow, "Top 5 Category Inflow", MONTHLY_COLOR_INFLOW, YTD_COLOR)
+    fig_inflow = make_bar_chart(top10_inflow, "Top 5 Category Inflow", MONTHLY_COLOR_INFLOW, YTD_COLOR)
     st.plotly_chart(fig_inflow, use_container_width=True)
 
 with col2:
     st.subheader("Top 5 Category Outflow")
-    fig_outflow = make_bar_chart(top5_outflow, "Top 5 Category Outflow", MONTHLY_COLOR_OUTFLOW, YTD_COLOR)
+    fig_outflow = make_bar_chart(top10_outflow, "Top 5 Category Outflow", MONTHLY_COLOR_OUTFLOW, YTD_COLOR)
     st.plotly_chart(fig_outflow, use_container_width=True)
 
 
