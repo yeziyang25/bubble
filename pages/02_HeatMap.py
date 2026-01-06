@@ -15,8 +15,7 @@ st.title("Trailing 3-Month Flow % of AUM — Heatmaps")
 ONEDRIVE_URL = "https://globalxcanada-my.sharepoint.com/:x:/g/personal/eden_ye_globalx_ca/EXAiBXWjq6ZMmkh17unVDIIBrLapRtA8PoYDycRTegM6EA?download=1"
 
 DEFAULT_MIXED_ROWS = [
-    "Single Stock",
-    "Lightly Leveraged",
+    "Lightly Leveraged Options Strategy",
     "Intl. Developed Equity",
     "Asset Allocation Portfolio",
     "Commodity",
