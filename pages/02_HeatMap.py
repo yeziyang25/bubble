@@ -107,7 +107,7 @@ except Exception as e:
     st.error(f"Failed to build mixed table: {e}")
 
 st.markdown("---")
-all_categories =['Lightly Leveraged','Intl. Developed Equity','Asset Allocation Portfolio', 'Commodity', 'Emerging Markets Equity',
+all_categories =['Lightly Leveraged Options Strategy','Intl. Developed Equity','Asset Allocation Portfolio', 'Commodity', 'Emerging Markets Equity',
 'Options-Based Strategies', 'Canada Equity', 'Global Equity', 'Thematic','U.S. Fixed Income', 'U.S. Equity','Canada Fixed Income', 'Sector Equity']
 for cat in all_categories:
     st.subheader(cat)
