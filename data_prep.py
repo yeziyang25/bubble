@@ -270,7 +270,7 @@ def build_trailing3m_flow_pct_table(
     months_all = [m for m in months_all if m <= asof_dt]
     if len(months_all) < 4:
         raise ValueError("Not enough historical months to compute trailing 3M flow % AUM.")
-    months_12 = months_all[-12:]
+    months_12 = months_all[-13:]
     
     base_cols = ['ETF', 'Category', 'Secondary Category']
     earliest_eval_idx = months_all.index(months_12[0])
