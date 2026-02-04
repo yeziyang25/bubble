@@ -428,7 +428,7 @@ else:
         height=700
     )
     fig.update_layout(showlegend=False)
-    fig.update_traces(textposition='bottom center', textfont=dict(size=20, color='black'))
+    fig.update_traces(textposition='bottom center', textfont=dict(size=15, color='black'))
     
     fig.update_layout(
         title={
