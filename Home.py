@@ -484,6 +484,8 @@ top10_ytd_new = (
 )
 
 
+st.dataframe(top10_ytd_new)
+
 top10_ytd_new = add_trend_and_scale(top10_ytd_new, normalize=True)
 c3, c4 = st.columns(2)
 with c3:

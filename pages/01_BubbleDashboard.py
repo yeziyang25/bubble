@@ -129,7 +129,6 @@ with col1:
     )
 
 df = process_data_for_date(selected_date, funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw)
-st.dataframe(df)
 with st.sidebar:
     st.header("🤖 GX Chat")
     
@@ -247,7 +246,7 @@ is_showing_all = not (selected_cats or selected_subcats or show_leveraged_only)
 filtered = filtered.copy()
 filtered['AUM'] = filtered['AUM'].fillna(0)
 
-
+st.dataframe(filtered)
 st.markdown("### Summary Statistics")
 metric_cols = st.columns(5)
 with metric_cols[0]:
@@ -305,6 +304,8 @@ with metric_cols[4]:
         </div>""",
         unsafe_allow_html=True
     )
+
+
 st.markdown("### ETF Flows Bubble Chart")
 
 def create_figure(data, show_text_labels=False):
