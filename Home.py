@@ -1,5 +1,5 @@
 import streamlit as st
-from data_prep import load_raw_data, load_raw_data_heatmap, process_data_for_date
+from data_prep import load_raw_data, process_data_for_date
 import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
@@ -124,6 +124,12 @@ onedrive_url = "https://globalxcanada-my.sharepoint.com/:x:/g/personal/eden_ye_g
 
 
 funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw = load_raw_data(onedrive_url)
+fund_df_gx = funds_df_raw[funds_df_raw['ETF Provider'].str.contains('Global X', case=False, na=False)].copy()
+universe = set(fund_df_gx['Ticker'])
+aum_df_gx = aum_df_raw[aum_df_raw['ETF'].isin(universe)]
+flow_df_gx = flow_df_raw[flow_df_raw['ETF'].isin(universe)]
+perf_df_gx = perf_df_raw[perf_df_raw['ETF'].isin(universe)]
+
 flow_date_cols = [c for c in flow_df_raw.columns if c != 'ETF']
 available_dates = sorted(pd.to_datetime(flow_date_cols, errors='coerce').dropna(), reverse=True)
 available_date_strs = [d.strftime('%Y-%m-%d') for d in available_dates]
@@ -139,6 +145,12 @@ df = process_data_for_date(selected_date, funds_df_raw, aum_df_raw, flow_df_raw,
 labels_12m, totals_12m_mn = compute_trailing_12m_market_flows(
     process_data_for_date,
     funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw,
+    available_dates, selected_ts
+)
+
+labels_12m_gx, totals_12m_mn_gx = compute_trailing_12m_market_flows(
+    process_data_for_date,
+    fund_df_gx, aum_df_gx, flow_df_gx, perf_df_gx,
     available_dates, selected_ts
 )
 
@@ -251,6 +263,17 @@ fig_12m = make_single_series_bar(
 st.subheader("Past 12 Months — Total ETF Net Flow")
 st.plotly_chart(fig_12m, use_container_width=True)
 
+
+
+#ADD Global X Past 12M Flow Chart
+fig_12m_GX = make_single_series_bar(
+    labels_12m_gx, 
+    totals_12m_mn_gx,
+    "Global X — Past 12 Months — Total ETF Net Flow (Adjusted)",
+    MONTHLY_COLOR_OUTFLOW
+)
+st.subheader("Global X — Past 12 Months — Total ETF Net Flow")
+st.plotly_chart(fig_12m_GX, use_container_width=True)
 
 col1, col2 = st.columns(2)
 
@@ -483,8 +506,6 @@ top10_ytd_new = (
     .rename(columns={'ETF': 'Ticker', 'YTD Flow': 'Flow'})
 )
 
-
-st.dataframe(top10_ytd_new)
 
 top10_ytd_new = add_trend_and_scale(top10_ytd_new, normalize=True)
 c3, c4 = st.columns(2)
