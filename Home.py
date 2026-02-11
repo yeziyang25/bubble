@@ -2,13 +2,17 @@ import streamlit as st
 from data_prep import load_raw_data, process_data_for_date
 import pandas as pd
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import numpy as np
 import re
+
+# Page config + styling
 st.set_page_config(
     page_title="ETF Flow & Tell",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
 st.markdown(
     """
     <style>
@@ -98,78 +102,183 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-def compute_trailing_12m_market_flows(
-    process_fn,
-    funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw,
-    available_dates: list[pd.Timestamp],
-    end_ts: pd.Timestamp
-):
-    # last 12 month-end dates up to end_ts
-    months_asc = sorted([d for d in available_dates if d <= end_ts])
-    last_12 = months_asc[-12:] if len(months_asc) >= 12 else months_asc
 
-    labels = []
-    totals_mn = []
+# Constants
+SCALE_DIVISOR = 1e6
+MONTHLY_COLOR_INFLOW = "#4472C4"
+MONTHLY_COLOR_OUTFLOW = "#ED7D31"
+YTD_COLOR = "#FFC000"
 
-    for d in last_12:
-        d_str = d.strftime('%Y-%m-%d')
-        df_m = process_fn(d_str, funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw)
-        total = pd.to_numeric(df_m['Monthly Flow'], errors='coerce').sum()
-        labels.append(d.strftime('%b %Y'))
-        totals_mn.append(float(total) / 1e6)  # scale to millions
+# Data loading
+onedrive_url = "https://globalxcanada-my.sharepoint.com/:x:/g/personal/eden_ye_globalx_ca/Eas53aR4lPlDn0ZlNHgX4ZABPDpH1Ign2mH4NGcJ0Hb80w?download=1"
+funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw = load_raw_data(onedrive_url)
 
+# Available dates from flow sheet columns
+flow_date_cols = [c for c in flow_df_raw.columns if c != "ETF"]
+available_dates_desc = sorted(pd.to_datetime(flow_date_cols, errors="coerce").dropna(), reverse=True)
+available_date_strs = [d.strftime("%Y-%m-%d") for d in available_dates_desc]
+
+# Provider list
+provider_col = funds_df_raw["ETF Provider"].fillna("Unknown").astype(str).str.strip()
+provider_options = ["All (Industry)"] + sorted(provider_col.unique())
+
+# Caching + helpers
+@st.cache_data(show_spinner=False)
+def process_cached(date_str: str) -> pd.DataFrame:
+    return process_data_for_date(date_str, funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw)
+
+# Lookup maps (for robustness if processed df is missing columns)
+_ticker_key = funds_df_raw["Ticker"].astype(str).str.strip()
+
+_provider_map = (
+    funds_df_raw.assign(_t=_ticker_key)[["_t", "ETF Provider"]]
+    .dropna(subset=["_t"])
+    .set_index("_t")["ETF Provider"]
+    .to_dict()
+)
+
+# Try common names for classification columns in your raw fund table
+RAW_CAT_COL = "Category"
+RAW_SEC_COL = "Secondary Category"
+
+_category_map = {}
+_secondary_map = {}
+if RAW_CAT_COL in funds_df_raw.columns:
+    _category_map = (
+        funds_df_raw.assign(_t=_ticker_key)[["_t", RAW_CAT_COL]]
+        .dropna(subset=["_t"])
+        .set_index("_t")[RAW_CAT_COL]
+        .to_dict()
+    )
+if RAW_SEC_COL in funds_df_raw.columns:
+    _secondary_map = (
+        funds_df_raw.assign(_t=_ticker_key)[["_t", RAW_SEC_COL]]
+        .dropna(subset=["_t"])
+        .set_index("_t")[RAW_SEC_COL]
+        .to_dict()
+    )
+
+def ensure_provider_col(df_in: pd.DataFrame) -> pd.DataFrame:
+    out = df_in.copy()
+    if "ETF Provider" not in out.columns:
+        out["ETF Provider"] = out["ETF"].astype(str).str.strip().map(_provider_map)
+    out["ETF Provider"] = out["ETF Provider"].fillna("Unknown").astype(str).str.strip()
+    return out
+
+def ensure_classification_cols(df_in: pd.DataFrame, cat_col="Category", sec_col="Secondary Category") -> pd.DataFrame:
+    """
+    Ensures Category / Secondary Category exist on processed df (maps from funds_df_raw if missing).
+    """
+    out = df_in.copy()
+
+    if cat_col not in out.columns and _category_map:
+        out[cat_col] = out["ETF"].astype(str).str.strip().map(_category_map)
+    if sec_col not in out.columns and _secondary_map:
+        out[sec_col] = out["ETF"].astype(str).str.strip().map(_secondary_map)
+
+    if cat_col in out.columns:
+        out[cat_col] = out[cat_col].fillna("Unknown").astype(str)
+    if sec_col in out.columns:
+        out[sec_col] = out[sec_col].fillna("Unknown").astype(str)
+
+    return out
+
+def apply_universe_filters(df_in: pd.DataFrame, category_sel=None, secondary_sel=None,
+                          cat_col="Category", sec_col="Secondary Category") -> pd.DataFrame:
+    out = df_in.copy()
+    if category_sel and cat_col in out.columns:
+        out = out[out[cat_col].astype(str).isin(category_sel)]
+    if secondary_sel and sec_col in out.columns:
+        out = out[out[sec_col].astype(str).isin(secondary_sel)]
+    return out
+
+# Trailing-series computations (now filter-aware)
+def compute_trailing_13m_market_flows(end_ts: pd.Timestamp, category_sel=None, secondary_sel=None):
+    """Industry total flows for past 13 month-ends up to end_ts (optionally filtered by Category/Secondary)."""
+    months_asc = sorted([d for d in available_dates_desc if d <= end_ts])
+    last_13 = months_asc[-13:] if len(months_asc) >= 13 else months_asc
+
+    labels, totals_mn = [], []
+    for d in last_13:
+        d_str = d.strftime("%Y-%m-%d")
+        df_m = process_cached(d_str)
+        df_m = ensure_provider_col(df_m)
+        df_m = ensure_classification_cols(df_m)
+        df_m = apply_universe_filters(df_m, category_sel, secondary_sel)
+
+        total = pd.to_numeric(df_m["Monthly Flow"], errors="coerce").sum()
+        labels.append(d.strftime("%b %Y"))
+        totals_mn.append(float(total) / 1e6)
     return labels, totals_mn
 
-onedrive_url = "https://globalxcanada-my.sharepoint.com/:x:/g/personal/eden_ye_globalx_ca/Eas53aR4lPlDn0ZlNHgX4ZABPDpH1Ign2mH4NGcJ0Hb80w?download=1"
+def compute_trailing_13m_gx_flows(end_ts: pd.Timestamp, category_sel=None, secondary_sel=None):
+    """Global X total flows for past 13 month-ends up to end_ts (optionally filtered by Category/Secondary)."""
+    months_asc = sorted([d for d in available_dates_desc if d <= end_ts])
+    last_13 = months_asc[-13:] if len(months_asc) >= 13 else months_asc
 
+    labels, totals_mn = [], []
+    for d in last_13:
+        d_str = d.strftime("%Y-%m-%d")
+        df_m = process_cached(d_str)
+        df_m = ensure_provider_col(df_m)
+        df_m = ensure_classification_cols(df_m)
+        df_m = apply_universe_filters(df_m, category_sel, secondary_sel)
 
-funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw = load_raw_data(onedrive_url)
-fund_df_gx = funds_df_raw[funds_df_raw['ETF Provider'].str.contains('Global X', case=False, na=False)].copy()
-universe = set(fund_df_gx['Ticker'])
-aum_df_gx = aum_df_raw[aum_df_raw['ETF'].isin(universe)]
-flow_df_gx = flow_df_raw[flow_df_raw['ETF'].isin(universe)]
-perf_df_gx = perf_df_raw[perf_df_raw['ETF'].isin(universe)]
+        gx_mask = df_m["ETF Provider"].str.contains(r"(global x|betapro)", case=False, na=False)
+        total = pd.to_numeric(df_m.loc[gx_mask, "Monthly Flow"], errors="coerce").sum()
+        labels.append(d.strftime("%b %Y"))
+        totals_mn.append(float(total) / 1e6)
+    return labels, totals_mn
 
-flow_date_cols = [c for c in flow_df_raw.columns if c != 'ETF']
-available_dates = sorted(pd.to_datetime(flow_date_cols, errors='coerce').dropna(), reverse=True)
-available_date_strs = [d.strftime('%Y-%m-%d') for d in available_dates]
-selected_date = st.selectbox(
-        "📅 Analysis Date",
-        options=available_date_strs,
-        index=0,
-        help="Select the date for your analysis")
-selected_ts = pd.to_datetime(selected_date)
+def compute_13m_provider_vs_gx_series(end_ts: pd.Timestamp, provider_choice: str | None,
+                                     category_sel=None, secondary_sel=None):
+    """
+    If provider_choice is None:
+      bars = Industry vs Global X
+      line = Industry total AUM
+    Else:
+      bars = Provider vs Global X
+      line = Provider total AUM
+    All series are optionally filtered by Category/Secondary.
+    """
+    months_asc = sorted([d for d in available_dates_desc if d <= end_ts])
+    last_13 = months_asc[-13:] if len(months_asc) >= 13 else months_asc
 
-df = process_data_for_date(selected_date, funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw)
+    if provider_choice and re.search(r"(global x|betapro)", provider_choice, flags=re.I):
+        provider_choice = None
 
-labels_12m, totals_12m_mn = compute_trailing_12m_market_flows(
-    process_data_for_date,
-    funds_df_raw, aum_df_raw, flow_df_raw, perf_df_raw,
-    available_dates, selected_ts
-)
+    labels = []
+    scope_flow_mn, gx_flow_mn, scope_aum_bn = [], [], []
 
-labels_12m_gx, totals_12m_mn_gx = compute_trailing_12m_market_flows(
-    process_data_for_date,
-    fund_df_gx, aum_df_gx, flow_df_gx, perf_df_gx,
-    available_dates, selected_ts
-)
+    for d in last_13:
+        d_str = d.strftime("%Y-%m-%d")
+        df_m = process_cached(d_str)
+        df_m = ensure_provider_col(df_m)
+        df_m = ensure_classification_cols(df_m)
+        df_m = apply_universe_filters(df_m, category_sel, secondary_sel)
 
+        if provider_choice is None:
+            df_scope = df_m
+            scope_name = "Industry"
+        else:
+            df_scope = df_m[df_m["ETF Provider"].eq(provider_choice)]
+            scope_name = provider_choice
 
-category_flow_summary = df.groupby("Category")[['Monthly Flow','YTD Flow']].sum()
+        gx_mask = df_m["ETF Provider"].str.contains(r"(global x|betapro)", case=False, na=False)
+        df_gx = df_m[gx_mask]
 
-category_flow_summary_sorted = category_flow_summary.sort_values(by='Monthly Flow')
-top10_inflow = category_flow_summary_sorted.tail(10)
-top10_outflow = category_flow_summary_sorted.head(10)
+        scope_flow = pd.to_numeric(df_scope.get("Monthly Flow", 0), errors="coerce").sum()
+        gx_flow = pd.to_numeric(df_gx.get("Monthly Flow", 0), errors="coerce").sum()
+        scope_aum = pd.to_numeric(df_scope.get("AUM", 0), errors="coerce").sum()
 
-SCALE_DIVISOR = 1e6  
-MONTHLY_COLOR_INFLOW = "#4472C4"  
-MONTHLY_COLOR_OUTFLOW = "#ED7D31"  
-YTD_COLOR = "#FFC000"       
+        labels.append(d.strftime("%b %Y"))
+        scope_flow_mn.append(float(scope_flow) / 1e6)
+        gx_flow_mn.append(float(gx_flow) / 1e6)
+        scope_aum_bn.append(float(scope_aum) / 1e9)
 
+    return labels, scope_flow_mn, gx_flow_mn, scope_aum_bn, scope_name
 
-
-
-
+# Chart builders
 def make_single_series_bar(x_labels, y_vals_mn, title: str, color: str):
     fig = go.Figure()
     fig.add_trace(go.Bar(
@@ -198,15 +307,15 @@ def make_single_series_bar(x_labels, y_vals_mn, title: str, color: str):
         showline=False, linecolor="#444", showgrid=False
     )
     return fig
+
 def make_bar_chart(df: pd.DataFrame, title: str, monthly_color: str, ytd_color: str):
     def _to_millions(vals):
         return [float(v) / 1e6 for v in vals]
 
-    # helper to insert line breaks in labels
     def wrap_labels(labels, max_words=2):
         wrapped = []
         for lbl in labels:
-            words = lbl.split()
+            words = str(lbl).split()
             lines = []
             for i in range(0, len(words), max_words):
                 lines.append(" ".join(words[i:i+max_words]))
@@ -216,8 +325,8 @@ def make_bar_chart(df: pd.DataFrame, title: str, monthly_color: str, ytd_color: 
     categories = df.index.tolist()
     categories_wrapped = wrap_labels(categories, max_words=2)
 
-    monthly_vals_mn = _to_millions(df['Monthly Flow'])
-    ytd_vals_mn = _to_millions(df['YTD Flow'])
+    monthly_vals_mn = _to_millions(df["Monthly Flow"]) if "Monthly Flow" in df.columns else []
+    ytd_vals_mn = _to_millions(df["YTD Flow"]) if "YTD Flow" in df.columns else []
 
     fig = go.Figure()
     fig.add_trace(go.Bar(
@@ -238,7 +347,7 @@ def make_bar_chart(df: pd.DataFrame, title: str, monthly_color: str, ytd_color: 
         margin=dict(l=10, r=10, t=60, b=10),
     )
     fig.update_xaxes(
-        title_text=None, tickangle=30, # keep horizontal now since we wrapped
+        title_text=None, tickangle=30,
         showline=True, linecolor="#444", showgrid=False,
         tickfont=dict(size=12)
     )
@@ -246,37 +355,200 @@ def make_bar_chart(df: pd.DataFrame, title: str, monthly_color: str, ytd_color: 
         title_text="Flow (Millions)", tickformat=",.0f", zeroline=True, zerolinecolor="#ddd",
         showline=False, linecolor="#444", showgrid=False
     )
-
     return fig
 
+def make_provider_vs_gx_flow_with_aum_line(
+    labels,
+    scope_flow_mn,
+    gx_flow_mn,
+    scope_aum_bn,
+    scope_name: str,
+    scope_bar_color: str = "#4472C4",
+    gx_bar_color: str = "#ED7D31",
+):
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+    fig.add_trace(
+        go.Bar(
+            x=labels, y=scope_flow_mn,
+            name=f"{scope_name} Flow (mn)",
+            marker_color=scope_bar_color,
+            text=[f"{v:,.0f}" for v in scope_flow_mn],
+            hovertemplate="<b>%{x}</b><br>Flow: %{y:,.0f} mn<extra></extra>",
+        ),
+        secondary_y=False,
+    )
+
+    fig.add_trace(
+        go.Bar(
+            x=labels, y=gx_flow_mn,
+            name="Global X Flow (mn)",
+            marker_color=gx_bar_color,
+            text=[f"{v:,.0f}" for v in gx_flow_mn],
+            hovertemplate="<b>%{x}</b><br>Global X Flow: %{y:,.0f} mn<extra></extra>",
+        ),
+        secondary_y=False,
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=labels, y=scope_aum_bn,
+            name=f"{scope_name} AUM (bn)",
+            mode="lines+markers",
+            hovertemplate="<b>%{x}</b><br>AUM: %{y:,.1f} bn<extra></extra>",
+        ),
+        secondary_y=True,
+    )
+
+    fig.update_layout(
+        title=f"{scope_name} vs Global X — Monthly Flows (Bars) + {scope_name} AUM (Line)",
+        title_x=0.5,
+        barmode="group",
+        bargap=0.25,
+        plot_bgcolor="white",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(l=10, r=10, t=70, b=30),
+    )
+
+    fig.update_xaxes(showline=True, linecolor="#444", showgrid=False, tickangle=0)
+    fig.update_yaxes(
+        title_text="Flow (Millions)",
+        tickformat=",.0f",
+        zeroline=True,
+        zerolinecolor="#ddd",
+        showgrid=False,
+        secondary_y=False,
+    )
+    fig.update_yaxes(
+        title_text="AUM (Billions)",
+        tickformat=",.1f",
+        showgrid=False,
+        secondary_y=True,
+    )
+    return fig
+
+# Filters (date + provider)
+selected_date = st.selectbox(
+    "📅 Analysis Date",
+    options=available_date_strs,
+    index=0,
+    help="Select the date for your analysis"
+)
+selected_ts = pd.to_datetime(selected_date)
+
+selected_prov = st.selectbox(
+    "🏢 ETF Provider",
+    options=provider_options,
+    index=0,
+    help="All (Industry) shows the full market. Otherwise compares that provider vs Global X."
+)
+provider_choice = None if selected_prov == "All (Industry)" else selected_prov
+
+# Main dataframe for selected date
+df = process_cached(selected_date)
+df = ensure_provider_col(df)
+df = ensure_classification_cols(df)
+
+# NEW: Category + Secondary Category filters
+CAT_COL = "Category"
+SEC_COL = "Secondary Category"
+
+cat_options = sorted(df[CAT_COL].dropna().astype(str).unique()) if CAT_COL in df.columns else []
+
+cfa, cfb = st.columns(2)
+
+with cfa:
+    selected_categories = st.multiselect(
+        "📂 Category",
+        options=cat_options,
+        default=[],
+        help="Leave blank to include all categories."
+    )
+
+# Secondary options depend on Category selection (but still allow Secondary-only filtering)
+if SEC_COL in df.columns:
+    if selected_categories and CAT_COL in df.columns:
+        sec_options = sorted(
+            df.loc[df[CAT_COL].astype(str).isin(selected_categories), SEC_COL]
+            .dropna().astype(str).unique()
+        )
+    else:
+        sec_options = sorted(df[SEC_COL].dropna().astype(str).unique())
+else:
+    sec_options = []
+
+with cfb:
+    selected_secondary = st.multiselect(
+        "🧩 Secondary Category",
+        options=sec_options,
+        default=[],
+        help="You can filter by Secondary Category without selecting Category."
+    )
+
+# Apply universe filters to df for all tables / summaries below
+df = apply_universe_filters(df, selected_categories, selected_secondary, CAT_COL, SEC_COL)
+st.caption(f"Universe: {len(df):,} ETFs after filters")
+
+# Provider vs GX chart (filtered universe)
+labels_cmp, scope_flow_mn, gx_flow_mn, scope_aum_bn, scope_name = compute_13m_provider_vs_gx_series(
+    end_ts=selected_ts,
+    provider_choice=provider_choice,
+    category_sel=selected_categories,
+    secondary_sel=selected_secondary
+)
+
+fig_cmp = make_provider_vs_gx_flow_with_aum_line(
+    labels_cmp,
+    scope_flow_mn,
+    gx_flow_mn,
+    scope_aum_bn,
+    scope_name=scope_name
+)
+st.subheader("Provider vs Global X — Monthly Flows (Bars) + AUM (Line)")
+st.plotly_chart(fig_cmp, use_container_width=True)
+
+# Industry trailing 13M bar (filtered universe)
+labels_12m, totals_12m_mn = compute_trailing_13m_market_flows(
+    selected_ts,
+    category_sel=selected_categories,
+    secondary_sel=selected_secondary
+)
+fig_12m = make_single_series_bar(
+    labels_12m,
+    totals_12m_mn,
+    "Past 13 Months — Total ETF Net Flow (Adjusted)",
+    MONTHLY_COLOR_INFLOW
+)
+st.subheader("Past 13 Months — Total ETF Net Flow")
+st.plotly_chart(fig_12m, use_container_width=True)
+
+# Global X trailing 13M bar (filtered universe)
+labels_12m_gx, totals_12m_mn_gx = compute_trailing_13m_gx_flows(
+    selected_ts,
+    category_sel=selected_categories,
+    secondary_sel=selected_secondary
+)
+fig_12m_GX = make_single_series_bar(
+    labels_12m_gx,
+    totals_12m_mn_gx,
+    "Global X — Past 13 Months — Total ETF Net Flow (Adjusted)",
+    MONTHLY_COLOR_OUTFLOW
+)
+st.subheader("Global X — Past 13 Months — Total ETF Net Flow")
+st.plotly_chart(fig_12m_GX, use_container_width=True)
+
+# If filters lead to empty df on selected date, avoid table errors
+if df.empty:
+    st.info("No ETFs match the selected Category/Secondary Category filters for this analysis date. Charts above still reflect the filtered universe across time.")
+    st.stop()
+
+# Category flow summaries (already filtered via df)
+category_flow_summary = df.groupby("Category")[["Monthly Flow", "YTD Flow"]].sum()
 category_flow_summary_sorted = category_flow_summary.sort_values(by="Monthly Flow")
 top10_inflow = category_flow_summary_sorted.tail(10)
 top10_outflow = category_flow_summary_sorted.head(10)
 
-
-fig_12m = make_single_series_bar(
-    labels_12m,
-    totals_12m_mn,
-    "Past 12 Months — Total ETF Net Flow (Adjusted)",
-    MONTHLY_COLOR_INFLOW
-)
-st.subheader("Past 12 Months — Total ETF Net Flow")
-st.plotly_chart(fig_12m, use_container_width=True)
-
-
-
-#ADD Global X Past 12M Flow Chart
-fig_12m_GX = make_single_series_bar(
-    labels_12m_gx, 
-    totals_12m_mn_gx,
-    "Global X — Past 12 Months — Total ETF Net Flow (Adjusted)",
-    MONTHLY_COLOR_OUTFLOW
-)
-st.subheader("Global X — Past 12 Months — Total ETF Net Flow")
-st.plotly_chart(fig_12m_GX, use_container_width=True)
-
 col1, col2 = st.columns(2)
-
 with col1:
     st.subheader("Top 5 Category Inflow")
     fig_inflow = make_bar_chart(top10_inflow, "Top 5 Category Inflow", MONTHLY_COLOR_INFLOW, YTD_COLOR)
@@ -287,40 +559,36 @@ with col2:
     fig_outflow = make_bar_chart(top10_outflow, "Top 5 Category Outflow", MONTHLY_COLOR_OUTFLOW, YTD_COLOR)
     st.plotly_chart(fig_outflow, use_container_width=True)
 
-
-
+# Build Past Flows dictionary per ETF (for sparklines)
 flow_long = flow_df_raw.melt(
-    id_vars='ETF',
+    id_vars="ETF",
     value_vars=flow_date_cols,
-    var_name='Date',
-    value_name='Flow'
+    var_name="Date",
+    value_name="Flow"
 )
-flow_long['Date'] = pd.to_datetime(flow_long['Date'], errors='coerce')
-flow_long.dropna(subset=['Date', 'Flow'], inplace=True)
-flow_long.sort_values(['ETF', 'Date'], inplace=True)
+flow_long["Date"] = pd.to_datetime(flow_long["Date"], errors="coerce")
+flow_long.dropna(subset=["Date", "Flow"], inplace=True)
+flow_long.sort_values(["ETF", "Date"], inplace=True)
 
 flow_dict = (
     flow_long
-    .groupby('ETF')
-    .apply(lambda g: dict(zip(g['Date'], g['Flow'])))
-    .reset_index(name='Past Flows')     
+    .groupby("ETF")
+    .apply(lambda g: dict(zip(g["Date"], g["Flow"])))
+    .reset_index(name="Past Flows")
 )
 
-df = df.merge(flow_dict, on='ETF', how='left')
-df['Past Flows'] = df['Past Flows'].apply(lambda x: x if isinstance(x, dict) else {})
+df = df.merge(flow_dict, on="ETF", how="left")
+df["Past Flows"] = df["Past Flows"].apply(lambda x: x if isinstance(x, dict) else {})
 
-
-flow_lookup = dict(
-    zip(flow_dict['ETF'].astype(str).str.strip(), flow_dict['Past Flows'])
-)
+flow_lookup = dict(zip(flow_dict["ETF"].astype(str).str.strip(), flow_dict["Past Flows"]))
 
 u_mask = (
-    df['ETF'].astype(str).str.endswith('(U)', na=False)
-    & df['Past Flows'].apply(lambda d: isinstance(d, dict) and len(d) == 0)
+    df["ETF"].astype(str).str.endswith("(U)", na=False)
+    & df["Past Flows"].apply(lambda d: isinstance(d, dict) and len(d) == 0)
 )
 
 def strip_u_suffix(etf: str) -> str:
-    return re.sub(r'\(U\)$', '', str(etf)).strip()
+    return re.sub(r"\(U\)$", "", str(etf)).strip()
 
 def multiply_dict_values(d: dict, factor: float) -> dict:
     if not isinstance(d, dict) or not d:
@@ -330,48 +598,45 @@ def multiply_dict_values(d: dict, factor: float) -> dict:
         try:
             out[k] = float(v) * factor if v is not None else v
         except (TypeError, ValueError):
-            out[k] = v  
+            out[k] = v
     return out
 
-base_keys = df.loc[u_mask, 'ETF'].apply(strip_u_suffix)
+base_keys = df.loc[u_mask, "ETF"].apply(strip_u_suffix)
 base_hist = base_keys.map(flow_lookup)
 imputed_hist = base_hist.apply(lambda d: multiply_dict_values(d, 2.0))
-df.loc[u_mask, 'Past Flows'] = imputed_hist
-
-
+df.loc[u_mask, "Past Flows"] = imputed_hist
 
 def last_12m_flow_list(flow_map: dict, end_ts: pd.Timestamp) -> list[float]:
     """Return list of 12 monthly flows ending at end_ts (inclusive), in chronological order."""
     if not isinstance(flow_map, dict):
         return [0.0] * 12
 
+    asc_dates = sorted(pd.to_datetime(flow_date_cols, errors="coerce").dropna())
+    desired_months = [d for d in asc_dates if d <= end_ts][-12:]
 
-    desired_months = [d for d in sorted(available_dates) if d <= end_ts][-12:]
+    if len(desired_months) == 0:
+        return [0.0] * 12
+
     if len(desired_months) < 12:
         desired_months = [desired_months[0]] * (12 - len(desired_months)) + desired_months
 
-    vals = [float(flow_map.get(m, 0.0)) for m in desired_months]
-    return vals
-
+    return [float(flow_map.get(m, 0.0)) for m in desired_months]
 
 def add_trend_and_scale(df_in: pd.DataFrame, normalize: bool = True, mark_symbol: str = "🔶") -> pd.DataFrame:
     """
     - Adds a brand mark (emoji) to Fund Name for Global X / BetaPro rows
     - Scales Flow/AUM to millions
     - Creates 'Flow Trend (12M)' (optionally min-max normalized)
-    - Adds '_brand' boolean flag
     """
     out = df_in.copy()
 
-    # 1) Brand mask
+    # Brand mask
     out["_brand"] = out["Fund Name"].str.contains(r"(Global X|BetaPro)", case=False, na=False)
 
-    # 2) Make Fund Name marking idempotent (strip any prior mark first)
+    # Idempotent marking
     out["Fund Name"] = out["Fund Name"].astype(str).str.replace(r"^(🔶|🟠)\s+", "", regex=True)
-    # Then prepend the orange symbol for brand rows
     out.loc[out["_brand"], "Fund Name"] = mark_symbol + " " + out.loc[out["_brand"], "Fund Name"]
 
-    # 3) 12M trend (in millions, then optional 0–1 normalization)
     def _trend_list(row):
         flows_map = row.get("Past Flows", {})
         vals = [float(v) / 1e6 for v in last_12m_flow_list(flows_map, selected_ts)]
@@ -384,47 +649,23 @@ def add_trend_and_scale(df_in: pd.DataFrame, normalize: bool = True, mark_symbol
 
     out["Flow Trend (12M)"] = out.apply(_trend_list, axis=1)
 
-    # 4) Scale to millions
+    # Scale to millions
     out["Flow"] = out["Flow"].astype(float) / 1e6
-    out["AUM"]  = out["AUM"].astype(float)  / 1e6
+    out["AUM"] = out["AUM"].astype(float) / 1e6
 
     return out
-
-def style_brand_rows(df: pd.DataFrame) -> pd.DataFrame:
-    styles = pd.DataFrame("", index=df.index, columns=df.columns)
-    mask = df.get("_brand", False)
-    styles.loc[mask, :] = "color: #ED7D31; font-weight: 600;"
-    return styles
-
-
-top15_inflow  = df.nlargest(15, 'Monthly Flow')[['Fund Name','ETF','Monthly Flow','AUM','Past Flows']].rename(columns={'ETF':'Ticker','Monthly Flow':'Flow'})
-top15_outflow = df.nsmallest(15, 'Monthly Flow')[['Fund Name','ETF','Monthly Flow','AUM','Past Flows']].rename(columns={'ETF':'Ticker','Monthly Flow':'Flow'})
-
-df_small_aum = df[df['AUM'] < 1_000_000_000]
-top15_inflow_small_aum  = df_small_aum.nlargest(15, 'Monthly Flow')[['Fund Name','ETF','Monthly Flow','AUM','Past Flows']].rename(columns={'ETF':'Ticker','Monthly Flow':'Flow'})
-top15_outflow_small_aum = df_small_aum.nsmallest(15, 'Monthly Flow')[['Fund Name','ETF','Monthly Flow','AUM','Past Flows']].rename(columns={'ETF':'Ticker','Monthly Flow':'Flow'})
-
-top15_inflow  = add_trend_and_scale(top15_inflow)
-top15_outflow = add_trend_and_scale(top15_outflow)
-top15_inflow_small_aum  = add_trend_and_scale(top15_inflow_small_aum)
-top15_outflow_small_aum = add_trend_and_scale(top15_outflow_small_aum)
-
-
-
-for dfx in (top15_inflow, top15_outflow, top15_inflow_small_aum, top15_outflow_small_aum):
-    if 'Past Flows' in dfx.columns:
-        dfx.drop(columns=['Past Flows'], inplace=True)
-
 
 def render_table_with_spark(df_disp: pd.DataFrame, title: str):
     st.markdown(f"**{title}**")
 
-    # Ensure every row has a list-like sequence for the sparkline
+    if df_disp.empty:
+        st.dataframe(df_disp, use_container_width=True, hide_index=True)
+        return
+
     trend_series = df_disp["Flow Trend (12M)"].apply(
         lambda v: v if isinstance(v, (list, tuple, np.ndarray)) and len(v) > 0 else [0.0]
     )
 
-    # Safe global y-range for the sparkline column
     try:
         all_vals = np.concatenate([np.asarray(x, dtype=float) for x in trend_series])
         ymin = float(np.nanmin(all_vals)) if all_vals.size else 0.0
@@ -436,9 +677,10 @@ def render_table_with_spark(df_disp: pd.DataFrame, title: str):
 
     df_disp = df_disp.copy()
     df_disp["Flow Trend (12M)"] = trend_series
-    df_show = df_disp.rename(columns={'Flow': 'Flow (M)', 'AUM': 'AUM (M)'}).copy()
-    df_show['Flow (M)'] = df_show['Flow (M)'].map(lambda x: f"{x:,.0f}" if pd.notnull(x) else "")
-    df_show['AUM (M)']  = df_show['AUM (M)'].map(lambda x: f"{x:,.0f}" if pd.notnull(x) else "")
+
+    df_show = df_disp.rename(columns={"Flow": "Flow (M)", "AUM": "AUM (M)"}).copy()
+    df_show["Flow (M)"] = df_show["Flow (M)"].map(lambda x: f"{x:,.0f}" if pd.notnull(x) else "")
+    df_show["AUM (M)"] = df_show["AUM (M)"].map(lambda x: f"{x:,.0f}" if pd.notnull(x) else "")
 
     st.dataframe(
         df_show,
@@ -446,9 +688,8 @@ def render_table_with_spark(df_disp: pd.DataFrame, title: str):
         height=515,
         hide_index=True,
         column_config={
-            # Now they are text columns (so they show commas)
             "Flow (M)": st.column_config.TextColumn(width="small"),
-            "AUM (M)":  st.column_config.TextColumn(width="small"),
+            "AUM (M)": st.column_config.TextColumn(width="small"),
             "Flow Trend (12M)": st.column_config.LineChartColumn(
                 label="Flow Trend (12M, norm)",
                 y_min=ymin, y_max=ymax, width="small"
@@ -458,65 +699,114 @@ def render_table_with_spark(df_disp: pd.DataFrame, title: str):
         }
     )
 
+# Top inflow/outflow tables w sparklines (filtered df)
+top15_inflow = (
+    df.nlargest(15, "Monthly Flow")[["Fund Name", "ETF", "Monthly Flow", "AUM", "Past Flows"]]
+    .rename(columns={"ETF": "Ticker", "Monthly Flow": "Flow"})
+)
+top15_outflow = (
+    df.nsmallest(15, "Monthly Flow")[["Fund Name", "ETF", "Monthly Flow", "AUM", "Past Flows"]]
+    .rename(columns={"ETF": "Ticker", "Monthly Flow": "Flow"})
+)
+
+df_small_aum = df[df["AUM"] < 1_000_000_000]
+top15_inflow_small_aum = (
+    df_small_aum.nlargest(15, "Monthly Flow")[["Fund Name", "ETF", "Monthly Flow", "AUM", "Past Flows"]]
+    .rename(columns={"ETF": "Ticker", "Monthly Flow": "Flow"})
+)
+top15_outflow_small_aum = (
+    df_small_aum.nsmallest(15, "Monthly Flow")[["Fund Name", "ETF", "Monthly Flow", "AUM", "Past Flows"]]
+    .rename(columns={"ETF": "Ticker", "Monthly Flow": "Flow"})
+)
+
+top15_inflow = add_trend_and_scale(top15_inflow)
+top15_outflow = add_trend_and_scale(top15_outflow)
+top15_inflow_small_aum = add_trend_and_scale(top15_inflow_small_aum)
+top15_outflow_small_aum = add_trend_and_scale(top15_outflow_small_aum)
+
+for dfx in (top15_inflow, top15_outflow, top15_inflow_small_aum, top15_outflow_small_aum):
+    if "Past Flows" in dfx.columns:
+        dfx.drop(columns=["Past Flows"], inplace=True)
+
 st.subheader("Top ETF Inflows & Outflows")
 c1, c2 = st.columns(2)
 with c1:
-    render_table_with_spark(top15_inflow[['Fund Name','Ticker','Flow','AUM','Flow Trend (12M)']], "Top 15 Inflow")
+    render_table_with_spark(
+        top15_inflow[["Fund Name", "Ticker", "Flow", "AUM", "Flow Trend (12M)"]],
+        "Top 15 Inflow"
+    )
 with c2:
-    render_table_with_spark(top15_outflow[['Fund Name','Ticker','Flow','AUM','Flow Trend (12M)']], "Top 15 Outflow")
+    render_table_with_spark(
+        top15_outflow[["Fund Name", "Ticker", "Flow", "AUM", "Flow Trend (12M)"]],
+        "Top 15 Outflow"
+    )
 
 c3, c4 = st.columns(2)
 with c3:
-    render_table_with_spark(top15_inflow_small_aum[['Fund Name','Ticker','Flow','AUM','Flow Trend (12M)']], "Top 15 Inflow (AUM < $1B)")
+    render_table_with_spark(
+        top15_inflow_small_aum[["Fund Name", "Ticker", "Flow", "AUM", "Flow Trend (12M)"]],
+        "Top 15 Inflow (AUM < $1B)"
+    )
 with c4:
-    render_table_with_spark(top15_outflow_small_aum[['Fund Name','Ticker','Flow','AUM','Flow Trend (12M)']], "Top 15 Outflow (AUM < $1B)")
+    render_table_with_spark(
+        top15_outflow_small_aum[["Fund Name", "Ticker", "Flow", "AUM", "Flow Trend (12M)"]],
+        "Top 15 Outflow (AUM < $1B)"
+    )
 
+# Global X tables + YTD new launches (all still filtered by Category/Secondary)
+brand_mask = df["Fund Name"].str.contains(r"(Global X|BetaPro)", case=False, na=False)
+small_aum_mask = df["AUM"] < 1_000_000_000
 
+# Top 15 Monthly Inflow — Global X / BetaPro (ALL)
+gx_bp_regular = df.loc[brand_mask, ["Fund Name", "ETF", "Monthly Flow", "AUM", "Past Flows", "Inception"]].copy()
+top15_brand_inflow = (
+    gx_bp_regular.nlargest(15, "Monthly Flow")
+    .rename(columns={"ETF": "Ticker", "Monthly Flow": "Flow"})
+)
+top15_brand_inflow = add_trend_and_scale(top15_brand_inflow, normalize=True)
 
-
-brand_mask = df['Fund Name'].str.contains(r'(Global X|BetaPro)', case=False, na=False)
-small_aum_mask = df['AUM'] < 1_000_000_000
-
+# Top 15 Monthly Inflow — Global X / BetaPro (AUM < 1B)
 gx_bp_small = df.loc[
     brand_mask & small_aum_mask,
-    ['Fund Name', 'ETF', 'Monthly Flow', 'AUM', 'Past Flows']
+    ["Fund Name", "ETF", "Monthly Flow", "AUM", "Past Flows", "Inception"]
 ].copy()
 
-top10_brand_small_inflow = (
-    gx_bp_small
-    .nlargest(15, 'Monthly Flow')
-    .rename(columns={'ETF': 'Ticker', 'Monthly Flow': 'Flow'})
+top15_brand_small_inflow = (
+    gx_bp_small.nlargest(15, "Monthly Flow")
+    .rename(columns={"ETF": "Ticker", "Monthly Flow": "Flow"})
 )
+top15_brand_small_inflow = add_trend_and_scale(top15_brand_small_inflow, normalize=True)
 
-top10_brand_small_inflow = add_trend_and_scale(top10_brand_small_inflow, normalize=True)
-
-
-# (Inception year == selected_ts.year)
-inception_dt = pd.to_datetime(df['Inception'], errors='coerce')
+# YTD new launches (launched in selected year)
+inception_dt = pd.to_datetime(df["Inception"], errors="coerce")
 launched_this_year_mask = inception_dt.dt.year.eq(selected_ts.year)
 
 ytd_new = df.loc[
     launched_this_year_mask,
-    ['Fund Name', 'ETF', 'YTD Flow', 'AUM', 'Past Flows', 'Inception']
+    ["Fund Name", "ETF", "YTD Flow", "AUM", "Past Flows", "Inception"]
 ].copy()
 
-top10_ytd_new = (
-    ytd_new
-    .nlargest(20, 'YTD Flow')
-    .rename(columns={'ETF': 'Ticker', 'YTD Flow': 'Flow'})
+top20_ytd_new = (
+    ytd_new.nlargest(20, "YTD Flow")
+    .rename(columns={"ETF": "Ticker", "YTD Flow": "Flow"})
 )
+top20_ytd_new = add_trend_and_scale(top20_ytd_new, normalize=True)
 
-
-top10_ytd_new = add_trend_and_scale(top10_ytd_new, normalize=True)
-c3, c4 = st.columns(2)
-with c3:
+# Display
+c5, c6 = st.columns(2)
+with c5:
     render_table_with_spark(
-        top10_brand_small_inflow[['Fund Name', 'Ticker', 'Flow', 'AUM', 'Flow Trend (12M)']],
+        top15_brand_small_inflow[["Fund Name", "Ticker", "Flow", "AUM", "Flow Trend (12M)"]],
         "Top 15 Monthly Inflow (< $1B) — Global X / BetaPro"
     )
-
-with c4:
+with c6:
     render_table_with_spark(
-        top10_ytd_new[['Fund Name', 'Ticker', 'Flow', 'AUM', 'Flow Trend (12M)']],
-        f"Top 20 YTD Inflow — Launched in {selected_ts.year}"
+        top15_brand_inflow[["Fund Name", "Ticker", "Flow", "AUM", "Flow Trend (12M)"]],
+        "Top 15 Monthly Inflow — Global X / BetaPro"
     )
+
+st.subheader(f"Top 20 YTD Inflow — Launched in {selected_ts.year}")
+render_table_with_spark(
+    top20_ytd_new[["Fund Name", "Ticker", "Flow", "AUM", "Flow Trend (12M)"]],
+    f"Top 20 YTD Inflow — Launched in {selected_ts.year}"
+)
