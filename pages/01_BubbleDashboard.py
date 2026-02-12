@@ -4,104 +4,27 @@ import plotly.express as px
 import streamlit as st
 from datetime import datetime
 from data_prep import load_raw_data, load_raw_data_heatmap, process_data_for_date
-from llm_api import ask_gemma  
+from llm_api import ask_gemma
+from config import apply_common_styling, render_header, render_metric_card, format_large_number
+from analytics_utils import create_category_sunburst, calculate_flow_consistency  
 
 
 
 
 st.set_page_config(
     page_title="ETF Bubble Dashboard",
+    page_icon="🔵",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
-st.markdown(
-    """
-    <style>
-    .stApp { 
-        background: linear-gradient(135deg, #f5f7fa 0%, #e8f4f8 100%);
-    }
 
-    .global-x-main {
-        font-size: 48px;
-        font-weight: bold;
-        color: #FF5722;
-        font-family: 'Arial', 'Helvetica', sans-serif;
-        letter-spacing: 3px;
-        margin: 0;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
-    }
-    .global-x-subtitle {
-        font-size: 18px;
-        color: #4682A9;
-        font-family: 'Arial', 'Helvetica', sans-serif;
-        margin: 5px 0 0 0;
-        font-weight: normal;
-    }
-    h1 { 
-        color: #00695C; 
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        text-align: center;
-        padding: 20px 0;
-        margin-bottom: 30px;
-    }
-    h3 {
-        color: #00695C;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        border-bottom: 2px solid #FF5722;
-        padding-bottom: 10px;
-        margin-top: 40px;
-        margin-bottom: 20px;
-    }
-    .metric-card {
-        background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        text-align: center;
-        border-left: 4px solid #FF5722;
-        transition: transform 0.2s ease;
-    }
-    .metric-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-        border-left-color: #00695C;
-    }
-    
-    .filters-container {
-        background: white;
-        padding: 25px;
-        border-radius: 15px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        margin-bottom: 30px;
-        border-top: 3px solid #FF5722;
-    }
-    /* Multiselect improvements */
-    .stMultiSelect > div > div > div {
-        border-radius: 8px;
-        border: 2px solid #BDC3C7;
-        transition: border-color 0.3s ease;
-    }
-    .stMultiSelect > div > div > div:focus-within {
-        border-color: #FF5722;
-        box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.1);
-    }
-    /* Selectbox improvements */
-    .stSelectbox > div > div > div {
-        border-radius: 8px;
-        border: 2px solid #BDC3C7;
-        transition: border-color 0.3s ease;
-    }
-    .stSelectbox > div > div > div:focus-within {
-        border-color: #FF5722;
-        box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.1);
-    }
-    /* Checkbox styling */
-    .stCheckbox > label > div {
-        color: #00695C;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
+# Apply common styling
+apply_common_styling()
+
+# Render professional header
+render_header(
+    "ETF Bubble Chart Visualization",
+    "Interactive Analysis of ETF Flows, AUM, and Performance Relationships"
 )
 
 
@@ -115,7 +38,8 @@ flow_date_cols = [c for c in flow_df_raw.columns if c != 'ETF']
 available_dates = sorted(pd.to_datetime(flow_date_cols, errors='coerce').dropna(), reverse=True)
 available_date_strs = [d.strftime('%Y-%m-%d') for d in available_dates]
 
-st.title("📊 ETF Bubble Chart Dashboard")
+# Control Panel
+st.markdown("### 🎛️ Dashboard Controls")
 
 
 col1, col2, col3, col4 = st.columns([2, 2.5, 2.5, 1.5])
@@ -562,4 +486,49 @@ else:
     secondary_fig.update_layout(showlegend=False)
 
 st.plotly_chart(secondary_fig, use_container_width=True)
+
+# ========== NEW: Additional Visualizations ==========
+st.markdown("---")
+st.markdown("## 📊 Advanced Visualizations")
+
+col_sunburst, col_consistency = st.columns(2)
+
+with col_sunburst:
+    st.markdown("### Asset Allocation Breakdown")
+    
+    # Create sunburst chart
+    fig_sunburst = create_category_sunburst(analysis_df)
+    
+    if fig_sunburst:
+        st.plotly_chart(fig_sunburst, use_container_width=True)
+    else:
+        st.info("Insufficient data for sunburst visualization")
+
+with col_consistency:
+    st.markdown("### ETF Flow Consistency (6M)")
+    
+    # Calculate flow consistency
+    consistency_df = calculate_flow_consistency(analysis_df, flow_df_raw, months=6)
+    
+    if not consistency_df.empty:
+        # Show top 15 most consistent ETFs
+        top_consistent = consistency_df.head(15)[
+            ['ETF', 'Fund Name', 'Category', 'Consistency Score', 'Positive Months']
+        ].copy()
+        
+        # Format for display
+        top_consistent['Consistency Score'] = top_consistent['Consistency Score'].apply(lambda x: f"{x:.1f}%")
+        top_consistent.columns = ['Ticker', 'Fund Name', 'Category', 'Consistency', 'Positive/6M']
+        
+        st.dataframe(
+            top_consistent,
+            use_container_width=True,
+            hide_index=True,
+            height=500
+        )
+        
+        st.caption("💡 Consistency Score = % of months with positive flows over last 6 months")
+    else:
+        st.info("Insufficient historical data for consistency analysis")
+
 
