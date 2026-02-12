@@ -7,9 +7,22 @@ from data_prep import (
     load_raw_data_heatmap,              
     build_trailing3m_flow_pct_table,    
 )
+from config import apply_common_styling, render_header
 
-st.set_page_config(page_title="ETF Flow Heatmaps", layout="wide")
-st.title("Trailing 3-Month Flow % of AUM — Heatmaps")
+st.set_page_config(
+    page_title="ETF Flow Heatmaps",
+    page_icon="🔥",
+    layout="wide"
+)
+
+# Apply common styling
+apply_common_styling()
+
+# Render professional header
+render_header(
+    "ETF Flow Heatmap Analysis",
+    "Trailing 3-Month Flow % of AUM - Identify Trends and Patterns"
+)
 
 
 ONEDRIVE_URL = "https://globalxcanada-my.sharepoint.com/:x:/g/personal/eden_ye_globalx_ca/EXAiBXWjq6ZMmkh17unVDIIBrLapRtA8PoYDycRTegM6EA?download=1"

@@ -5,102 +5,32 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import numpy as np
 import re
+from config import apply_common_styling, render_header, render_metric_card, format_large_number
+from analytics_utils import (
+    calculate_market_concentration, 
+    calculate_provider_market_share,
+    create_provider_market_share_chart,
+    create_concentration_chart,
+    create_flow_momentum_indicator,
+    create_flow_momentum_chart,
+    calculate_category_performance_metrics
+)
 
 # Page config + styling
 st.set_page_config(
-    page_title="ETF Flow & Tell",
+    page_title="Canadian ETF Analytics Dashboard",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-st.markdown(
-    """
-    <style>
-    .stApp { 
-        background: linear-gradient(135deg, #f5f7fa 0%, #e8f4f8 100%);
-    }
+# Apply common styling
+apply_common_styling()
 
-    .global-x-main {
-        font-size: 48px;
-        font-weight: bold;
-        color: #FF5722;
-        font-family: 'Arial', 'Helvetica', sans-serif;
-        letter-spacing: 3px;
-        margin: 0;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
-    }
-    .global-x-subtitle {
-        font-size: 18px;
-        color: #4682A9;
-        font-family: 'Arial', 'Helvetica', sans-serif;
-        margin: 5px 0 0 0;
-        font-weight: normal;
-    }
-    h1 { 
-        color: #00695C; 
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        text-align: center;
-        padding: 20px 0;
-        margin-bottom: 30px;
-    }
-    h3 {
-        color: #00695C;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        border-bottom: 2px solid #FF5722;
-        padding-bottom: 10px;
-        margin-top: 40px;
-        margin-bottom: 20px;
-    }
-    .metric-card {
-        background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        text-align: center;
-        border-left: 4px solid #FF5722;
-        transition: transform 0.2s ease;
-    }
-    .metric-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-        border-left-color: #00695C;
-    }
-    
-    .filters-container {
-        background: white;
-        padding: 25px;
-        border-radius: 15px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        margin-bottom: 30px;
-        border-top: 3px solid #FF5722;
-    }
-    /* Multiselect improvements */
-    .stMultiSelect > div > div > div {
-        border-radius: 8px;
-        border: 2px solid #BDC3C7;
-        transition: border-color 0.3s ease;
-    }
-    .stMultiSelect > div > div > div:focus-within {
-        border-color: #FF5722;
-        box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.1);
-    }
-    /* Selectbox improvements */
-    .stSelectbox > div > div > div {
-        border-radius: 8px;
-        border: 2px solid #BDC3C7;
-        transition: border-color 0.3s ease;
-    }
-    .stSelectbox > div > div > div:focus-within {
-        border-color: #FF5722;
-        box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.1);
-    }
-    /* Checkbox styling */
-    .stCheckbox > label > div {
-        color: #00695C;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
+# Render professional header
+render_header(
+    "Canadian ETF Market Intelligence Dashboard",
+    "Comprehensive Analysis of ETF Flows, Performance, and Market Dynamics"
 )
 
 # Constants
@@ -427,22 +357,37 @@ def make_provider_vs_gx_flow_with_aum_line(
     )
     return fig
 
-# Filters (date + provider)
-selected_date = st.selectbox(
-    "📅 Analysis Date",
-    options=available_date_strs,
-    index=0,
-    help="Select the date for your analysis"
-)
-selected_ts = pd.to_datetime(selected_date)
+# Filters section with improved layout
+st.markdown("### 🎛️ Dashboard Controls")
 
-selected_prov = st.selectbox(
-    "🏢 ETF Provider",
-    options=provider_options,
-    index=0,
-    help="All (Industry) shows the full market. Otherwise compares that provider vs Global X."
-)
-provider_choice = None if selected_prov == "All (Industry)" else selected_prov
+filter_col1, filter_col2, filter_col3 = st.columns([2, 2, 3])
+
+with filter_col1:
+    selected_date = st.selectbox(
+        "📅 Analysis Date",
+        options=available_date_strs,
+        index=0,
+        help="Select the date for your analysis"
+    )
+    selected_ts = pd.to_datetime(selected_date)
+
+with filter_col2:
+    selected_prov = st.selectbox(
+        "🏢 ETF Provider",
+        options=provider_options,
+        index=0,
+        help="All (Industry) shows the full market. Otherwise compares that provider vs Global X."
+    )
+    provider_choice = None if selected_prov == "All (Industry)" else selected_prov
+
+with filter_col3:
+    # Display data freshness
+    st.markdown(f"""
+    <div style='padding: 10px; background: #E8F5E9; border-radius: 8px; border-left: 4px solid #4CAF50;'>
+        <div style='font-size: 12px; color: #666; margin-bottom: 5px;'>📊 Data as of</div>
+        <div style='font-size: 18px; color: #00695C; font-weight: bold;'>{selected_ts.strftime('%B %d, %Y')}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # Main dataframe for selected date
 df = process_cached(selected_date)
@@ -558,6 +503,153 @@ with col2:
     st.subheader("Top 5 Category Outflow")
     fig_outflow = make_bar_chart(top10_outflow, "Top 5 Category Outflow", MONTHLY_COLOR_OUTFLOW, YTD_COLOR)
     st.plotly_chart(fig_outflow, use_container_width=True)
+
+# ========== NEW: MARKET INTELLIGENCE SECTION ==========
+st.markdown("---")
+st.markdown("## 📊 Market Intelligence & Analytics")
+
+# Row 1: Market Concentration and Provider Market Share
+col_conc, col_provider = st.columns(2)
+
+with col_conc:
+    st.markdown("### Market Concentration Analysis")
+    concentration_data = calculate_market_concentration(df, top_n=10)
+    
+    if concentration_data:
+        # Display HHI metric
+        hhi = concentration_data['hhi']
+        hhi_interpretation = "Highly Concentrated" if hhi > 2500 else "Moderately Concentrated" if hhi > 1500 else "Competitive"
+        
+        col_hhi1, col_hhi2 = st.columns(2)
+        with col_hhi1:
+            st.markdown(
+                render_metric_card(
+                    "Top 10 Concentration",
+                    f"{concentration_data['concentration_pct']:.1f}%"
+                ),
+                unsafe_allow_html=True
+            )
+        with col_hhi2:
+            st.markdown(
+                render_metric_card(
+                    "HHI Score",
+                    f"{hhi:.0f}",
+                    delta=hhi_interpretation
+                ),
+                unsafe_allow_html=True
+            )
+        
+        # Concentration chart
+        fig_conc = create_concentration_chart(concentration_data)
+        if fig_conc:
+            st.plotly_chart(fig_conc, use_container_width=True)
+    else:
+        st.info("Insufficient data for concentration analysis")
+
+with col_provider:
+    st.markdown("### Provider Market Share")
+    provider_stats = calculate_provider_market_share(df)
+    
+    if not provider_stats.empty:
+        # Top 3 providers metrics
+        col_p1, col_p2, col_p3 = st.columns(3)
+        
+        for idx, col in enumerate([col_p1, col_p2, col_p3]):
+            if idx < len(provider_stats):
+                provider_row = provider_stats.iloc[idx]
+                with col:
+                    st.markdown(
+                        render_metric_card(
+                            provider_row['Provider'],
+                            f"{provider_row['Market Share %']:.1f}%",
+                            delta=f"{provider_row['Number of ETFs']:.0f} ETFs"
+                        ),
+                        unsafe_allow_html=True
+                    )
+        
+        # Provider pie chart
+        fig_provider = create_provider_market_share_chart(provider_stats, top_n=8)
+        if fig_provider:
+            st.plotly_chart(fig_provider, use_container_width=True)
+    else:
+        st.info("Insufficient data for provider analysis")
+
+# Row 2: Flow Momentum and Category Performance
+st.markdown("---")
+col_momentum, col_category_perf = st.columns(2)
+
+with col_momentum:
+    st.markdown("### Flow Momentum Analysis")
+    momentum_data = create_flow_momentum_indicator(df, 'Monthly Flow')
+    
+    if momentum_data:
+        # Display momentum metrics
+        col_m1, col_m2, col_m3 = st.columns(3)
+        
+        with col_m1:
+            st.markdown(
+                render_metric_card(
+                    "ETFs with Inflows",
+                    f"{momentum_data['positive_count']:,}",
+                    delta=f"{(momentum_data['positive_count']/(momentum_data['positive_count']+momentum_data['negative_count'])*100):.1f}%"
+                ),
+                unsafe_allow_html=True
+            )
+        
+        with col_m2:
+            st.markdown(
+                render_metric_card(
+                    "Total Inflows",
+                    format_large_number(momentum_data['positive_sum'])
+                ),
+                unsafe_allow_html=True
+            )
+        
+        with col_m3:
+            st.markdown(
+                render_metric_card(
+                    "Net Flow",
+                    format_large_number(momentum_data['net_flow']),
+                    delta="Positive" if momentum_data['net_flow'] > 0 else "Negative"
+                ),
+                unsafe_allow_html=True
+            )
+        
+        # Momentum chart
+        fig_momentum = create_flow_momentum_chart(momentum_data)
+        if fig_momentum:
+            st.plotly_chart(fig_momentum, use_container_width=True)
+    else:
+        st.info("Insufficient data for momentum analysis")
+
+with col_category_perf:
+    st.markdown("### Top Categories by Performance")
+    category_metrics = calculate_category_performance_metrics(df)
+    
+    if not category_metrics.empty:
+        # Show top 10 categories by AUM
+        top_categories = category_metrics.head(10)[
+            ['Category', 'Total AUM', 'Number of ETFs', 'Monthly Flow %', 'Avg Performance']
+        ].copy()
+        
+        # Format for display
+        top_categories['Total AUM'] = top_categories['Total AUM'].apply(lambda x: format_large_number(x))
+        top_categories['Monthly Flow %'] = top_categories['Monthly Flow %'].apply(lambda x: f"{x:.2f}%")
+        top_categories['Avg Performance'] = top_categories['Avg Performance'].apply(lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A")
+        top_categories.columns = ['Category', 'AUM', '# ETFs', 'Flow %', 'Perf %']
+        
+        st.dataframe(
+            top_categories,
+            use_container_width=True,
+            hide_index=True,
+            height=400
+        )
+    else:
+        st.info("Insufficient data for category performance analysis")
+
+st.markdown("---")
+# ========== END NEW SECTION ==========
+
 
 # Build Past Flows dictionary per ETF (for sparklines)
 flow_long = flow_df_raw.melt(

@@ -6,103 +6,24 @@ from datetime import datetime
 
 from data_prep import load_raw_data, load_raw_data_heatmap, process_data_for_date
 from llm_api import ask_gemma
-
+from config import apply_common_styling, render_header, render_metric_card, format_large_number
+from analytics_utils import create_aum_growth_trajectory
 
 
 st.set_page_config(
     page_title="ETF Trend Chart",
+    page_icon="📈",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-st.markdown(
-    """
-    <style>
-    .stApp { 
-        background: linear-gradient(135deg, #f5f7fa 0%, #e8f4f8 100%);
-    }
+# Apply common styling
+apply_common_styling()
 
-    .global-x-main {
-        font-size: 48px;
-        font-weight: bold;
-        color: #FF5722;
-        font-family: 'Arial', 'Helvetica', sans-serif;
-        letter-spacing: 3px;
-        margin: 0;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
-    }
-    .global-x-subtitle {
-        font-size: 18px;
-        color: #4682A9;
-        font-family: 'Arial', 'Helvetica', sans-serif;
-        margin: 5px 0 0 0;
-        font-weight: normal;
-    }
-    h1 { 
-        color: #00695C; 
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        text-align: center;
-        padding: 20px 0;
-        margin-bottom: 30px;
-    }
-    h3 {
-        color: #00695C;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        border-bottom: 2px solid #FF5722;
-        padding-bottom: 10px;
-        margin-top: 40px;
-        margin-bottom: 20px;
-    }
-    .metric-card {
-        background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        text-align: center;
-        border-left: 4px solid #FF5722;
-        transition: transform 0.2s ease;
-    }
-    .metric-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-        border-left-color: #00695C;
-    }
-
-    .filters-container {
-        background: white;
-        padding: 25px;
-        border-radius: 15px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        margin-bottom: 30px;
-        border-top: 3px solid #FF5722;
-    }
-    /* Multiselect improvements */
-    .stMultiSelect > div > div > div {
-        border-radius: 8px;
-        border: 2px solid #BDC3C7;
-        transition: border-color 0.3s ease;
-    }
-    .stMultiSelect > div > div > div:focus-within {
-        border-color: #FF5722;
-        box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.1);
-    }
-    /* Selectbox improvements */
-    .stSelectbox > div > div > div {
-        border-radius: 8px;
-        border: 2px solid #BDC3C7;
-        transition: border-color 0.3s ease;
-    }
-    .stSelectbox > div > div > div:focus-within {
-        border-color: #FF5722;
-        box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.1);
-    }
-    /* Checkbox styling */
-    .stCheckbox > label > div {
-        color: #00695C;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
+# Render professional header
+render_header(
+    "ETF Trend Analysis",
+    "Track Monthly Flow Trends and AUM Growth Over Time"
 )
 
 
@@ -114,11 +35,8 @@ flow_date_cols = [c for c in flow_df_raw.columns if c != "ETF"]
 available_dates = sorted(pd.to_datetime(flow_date_cols, errors="coerce").dropna(), reverse=True)
 available_date_strs = [d.strftime("%Y-%m-%d") for d in available_dates]
 
-
-# =========================
-# Header
-# =========================
-st.title("📊 ETF Trend Chart")
+# Control Panel
+st.markdown("### 🎛️ Dashboard Controls")
 
 col1, col2, col3, col4 = st.columns([2, 2.5, 2.5, 1.5])
 
@@ -394,3 +312,35 @@ else:
             )
 
             st.plotly_chart(fig_line, use_container_width=True)
+
+# =========================
+# NEW: AUM Growth Trajectory for Top ETFs
+# =========================
+st.markdown("---")
+st.markdown("### 📈 AUM Growth Trajectories")
+
+# Allow user to select specific ETFs to track
+top_etfs_by_aum = filtered.nlargest(20, 'AUM')['ETF'].tolist()
+
+selected_etfs_for_trajectory = st.multiselect(
+    "Select ETFs to Track (Top 20 by AUM shown)",
+    options=top_etfs_by_aum,
+    default=top_etfs_by_aum[:5] if len(top_etfs_by_aum) >= 5 else top_etfs_by_aum,
+    help="Track AUM growth over the last 12 months for selected ETFs"
+)
+
+if selected_etfs_for_trajectory:
+    fig_trajectory = create_aum_growth_trajectory(
+        filtered,
+        aum_df_raw,
+        selected_etfs_for_trajectory,
+        months_back=12
+    )
+    
+    if fig_trajectory:
+        st.plotly_chart(fig_trajectory, use_container_width=True)
+    else:
+        st.info("Insufficient historical AUM data for the selected ETFs")
+else:
+    st.info("Please select at least one ETF to view its AUM growth trajectory")
+
