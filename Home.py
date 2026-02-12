@@ -5,6 +5,16 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import numpy as np
 import re
+from analytics_utils import (
+    calculate_market_concentration, 
+    calculate_provider_market_share,
+    create_provider_market_share_chart,
+    create_concentration_chart,
+    create_flow_momentum_indicator,
+    create_flow_momentum_chart,
+    calculate_category_performance_metrics
+)
+from config import apply_common_styling, render_header, render_metric_card, format_large_number
 
 # Page config + styling
 st.set_page_config(
@@ -559,6 +569,100 @@ with col2:
     fig_outflow = make_bar_chart(top10_outflow, "Top 5 Category Outflow", MONTHLY_COLOR_OUTFLOW, YTD_COLOR)
     st.plotly_chart(fig_outflow, use_container_width=True)
 
+
+
+
+
+
+# ========== NEW: MARKET INTELLIGENCE SECTION ==========
+st.markdown("---")
+st.markdown("## 📊 Market Intelligence & Analytics")
+
+# Row 1: Market Concentration and Provider Market Share
+col_conc, col_provider = st.columns(2)
+
+with col_conc:
+    st.markdown("### Market Concentration Analysis")
+    concentration_data = calculate_market_concentration(df, top_n=10)
+    
+    if concentration_data:
+        # Display HHI metric
+        hhi = concentration_data['hhi']
+        hhi_interpretation = "Highly Concentrated" if hhi > 2500 else "Moderately Concentrated" if hhi > 1500 else "Competitive"
+        
+    
+        # Concentration chart
+        fig_conc = create_concentration_chart(concentration_data)
+        if fig_conc:
+            st.plotly_chart(fig_conc, use_container_width=True)
+    else:
+        st.info("Insufficient data for concentration analysis")
+
+with col_provider:
+    st.markdown("### Provider Market Share")
+    provider_stats = calculate_provider_market_share(df)
+    
+    if not provider_stats.empty:
+        # Top 3 providers metrics
+
+        
+        # Provider pie chart
+        fig_provider = create_provider_market_share_chart(provider_stats, top_n=8)
+        if fig_provider:
+            st.plotly_chart(fig_provider, use_container_width=True)
+    else:
+        st.info("Insufficient data for provider analysis")
+
+# Row 2: Flow Momentum and Category Performance
+st.markdown("---")
+col_momentum, col_category_perf = st.columns(2)
+
+with col_momentum:
+    st.markdown("### Flow Momentum Analysis")
+    momentum_data = create_flow_momentum_indicator(df, 'Monthly Flow')
+    
+    if momentum_data:
+        # Display momentum metrics
+        col_m1, col_m2, col_m3 = st.columns(3)
+        
+        with col_m1:
+            st.markdown(
+                render_metric_card(
+                    "ETFs with Inflows",
+                    f"{momentum_data['positive_count']:,}",
+                    delta=f"{(momentum_data['positive_count']/(momentum_data['positive_count']+momentum_data['negative_count'])*100):.1f}%"
+                ),
+                unsafe_allow_html=True
+            )
+        
+        with col_m2:
+            st.markdown(
+                render_metric_card(
+                    "Total Inflows",
+                    format_large_number(momentum_data['positive_sum'])
+                ),
+                unsafe_allow_html=True
+            )
+        
+        with col_m3:
+            st.markdown(
+                render_metric_card(
+                    "Net Flow",
+                    format_large_number(momentum_data['net_flow']),
+                    delta="Positive" if momentum_data['net_flow'] > 0 else "Negative"
+                ),
+                unsafe_allow_html=True
+            )
+        
+        # Momentum chart
+        fig_momentum = create_flow_momentum_chart(momentum_data)
+        if fig_momentum:
+            st.plotly_chart(fig_momentum, use_container_width=True)
+    else:
+        st.info("Insufficient data for momentum analysis")
+
+
+st.markdown("---")
 # Build Past Flows dictionary per ETF (for sparklines)
 flow_long = flow_df_raw.melt(
     id_vars="ETF",
