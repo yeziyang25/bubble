@@ -594,7 +594,7 @@ with col_conc:
         # Concentration chart
         fig_conc = create_concentration_chart(concentration_data)
         if fig_conc:
-            st.plotly_chart(fig_conc, use_container_width=True)
+            st.plotly_chart(fig_conc, use_container_width=True,height=500)
     else:
         st.info("Insufficient data for concentration analysis")
 
@@ -609,7 +609,7 @@ with col_provider:
         # Provider pie chart
         fig_provider = create_provider_market_share_chart(provider_stats, top_n=8)
         if fig_provider:
-            st.plotly_chart(fig_provider, use_container_width=True)
+            st.plotly_chart(fig_provider, use_container_width=True,height=500)
     else:
         st.info("Insufficient data for provider analysis")
 
