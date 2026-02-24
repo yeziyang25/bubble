@@ -84,10 +84,10 @@ def provider_flow_tbl(df_raw: pd.DataFrame) -> pd.DataFrame:
     provider_col = "ETF Provider"
     flow_col = "Weekly Flow"
     aum_2025_col = "AUM (2024)" # to change to 2025?
-    cols_sum = ["AUM","Weekly Flow","Last Week","2 Weeks Prior Flow","3 Weeks Prior Flow","YTD Flow",aum_2025_col]
+    cols_sum = ["AUM","Weekly Flow","Last Week","2 Weeks Prior Flow","3 Weeks Prior Flow","YTD Flow","Turnover",aum_2025_col]
     bar_cols = [flow_col, "Last Week", "2 Weeks Prior Flow", "3 Weeks Prior Flow"]
     ordered = ["Rank Change", provider_col, "Rank",
-        "AUM", flow_col, "Last Week", "2 Weeks Prior Flow", "3 Weeks Prior Flow", "YTD Flow",
+        "AUM", flow_col, "Last Week", "2 Weeks Prior Flow", "3 Weeks Prior Flow", "YTD Flow","Turnover",
         "% Weekly Segments Flow", "2025 Mkt. Share", "Cur. Mkt. Share", "Prior Rank"]
 
     g = df_raw.groupby(provider_col)[cols_sum].sum()
@@ -124,7 +124,7 @@ def provider_flow_tbl(df_raw: pd.DataFrame) -> pd.DataFrame:
     final_df.loc["Grand Total", "Rank"]=None
     
     million_cols = ["AUM","Weekly Flow","Last Week","2 Weeks Prior Flow",
-                    "3 Weeks Prior Flow","YTD Flow"]
+                    "3 Weeks Prior Flow","YTD Flow","Turnover"]
     final_df[million_cols] = (
         final_df[million_cols]
         .apply(pd.to_numeric, errors="coerce")
@@ -163,23 +163,32 @@ def fund_flow_tbl(df_raw: pd.DataFrame) -> pd.DataFrame:
 
     #redo gt to sum the % columns
     gt = pd.DataFrame([df_ff.select_dtypes(include="number").sum()], index=["Grand Total"])
-    df_ff = df_ff.head(10)
-    df_ff = pd.concat([df_ff,gt])
-    df_ff.loc[df_ff.index == "Grand Total", "Fund Name"] = "Grand Total*"
     
-    df_ff[million_cols] = (
-        df_ff[million_cols]
-        .apply(pd.to_numeric, errors="coerce")
-        .apply(lambda col: col.apply(lambda x: "" if pd.isna(x) else f"{x/1e6:,.0f} M")))
+    #adding low aum fund tables (<500M)
+    df_low_aum = df_ff[df_ff["AUM"]<500000000].copy()
+    df_low_aum = df_low_aum.sort_values(flow_col, ascending=False)
     
-    df_ff[perc_cols] = (df_ff[perc_cols]
-        .apply(pd.to_numeric, errors="coerce")
-        .apply(lambda s: s.apply(lambda x: "" if pd.isna(x) else f"{x*100:.1f}%")))
+    dfs = [df_ff, df_low_aum]
+    for i in range(len(dfs)):
+        df = dfs[i].head(10).copy()
+        df = pd.concat([df,gt])
+        df.loc[df.index == "Grand Total", "Fund Name"] = "Grand Total*"
     
-    df_ff["# of Trades"] = df_ff["# of Trades"].apply( lambda x: "" if pd.isna(x) else f"{x:,.0f}" )
-    df_ff = df_ff.fillna('')
-
-    return df_ff
+        df[million_cols] = (
+            df[million_cols]
+            .apply(pd.to_numeric, errors="coerce")
+            .apply(lambda col: col.apply(lambda x: "" if pd.isna(x) else f"{x/1e6:,.0f} M")))
+    
+        df[perc_cols] = (df[perc_cols]
+                            .apply(pd.to_numeric, errors="coerce")
+                            .apply(lambda s: s.apply(lambda x: "" if pd.isna(x) else f"{x*100:.1f}%")))
+    
+        df["# of Trades"] = df["# of Trades"].apply( lambda x: "" if pd.isna(x) else f"{x:,.0f}" )
+        dfs[i] = df.fillna('')
+        
+        
+    df_ff, df_low_aum = dfs
+    return df_ff, df_low_aum
 
 
 #"""-----------------IMPORT RAW DATA-----------------"""
@@ -240,9 +249,18 @@ for title, df_seg in segments.items():
     #st.markdown(styled.to_html(), unsafe_allow_html=True)
     #st.dataframe(styled, hide_index=True, use_container_width=True)
 
-    fund_disp = fund_flow_tbl(df_seg)
-    st.dataframe(fund_disp.style.map(highlight_gx, subset=["Fund Name"]),
-                 height=422, hide_index=True, use_container_width=True)
+    fund_disp, f_low_aum = fund_flow_tbl(df_seg)
+    if "All Segments" in title:
+        st.caption("All Tickers")
+        st.dataframe(fund_disp.style.map(highlight_gx, subset=["Fund Name"]),
+                     height=422, hide_index=True, use_container_width=True)
+        st.caption("")
+        st.caption("Excluding tickers with AUM > 500M")
+        st.dataframe(f_low_aum.style.map(highlight_gx, subset=["Fund Name"]),
+                     height=422, hide_index=True, use_container_width=True)
+    else:st.dataframe(fund_disp.style.map(highlight_gx, subset=["Fund Name"]),
+                     height=422, hide_index=True, use_container_width=True)
+    
     st.markdown("---")
 
 st.caption("*Grand Total represents the full universe total; table rows display only the top 10 by weekly flow.")
