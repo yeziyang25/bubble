@@ -20,7 +20,7 @@ config = { #"ticker":[leverage ratio, rebalance tolerance, underlying index]
     "QQQL":[1.25,0.005, "NDX Index"],
     "EMML":[1.25,0.005, "MXEF Index"],
     "EAFL":[1.25,0.005, "MXEA Index"],
-    "CANL":[1.25,0.005, "SPTSX60 Index"],
+    "CANL":[1.25,0.005, "TX60AR Index"],
     "HEQL":[1.25,0.01, "HEQT CN Equity"],
     "FTSE CHINA 50":[3,0, "XIN0U Index"]
     }
