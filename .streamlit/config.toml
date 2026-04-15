@@ -1,0 +1,11 @@
+[theme]
+# Global X brand palette — professional finance look
+primaryColor     = "#FF5722"   # Orange accent (buttons, links, active states)
+backgroundColor  = "#F8FAFD"   # Off-white app background
+secondaryBackgroundColor = "#FFFFFF"  # Sidebar / widget backgrounds
+textColor        = "#1B2A3B"   # Dark navy body text
+font             = "sans serif"
+
+[server]
+# Prevent caching issues during development
+maxUploadSize = 50

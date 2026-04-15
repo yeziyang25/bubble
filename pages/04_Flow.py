@@ -15,7 +15,12 @@ excel_buffer = BytesIO(resp.content)
 
  
 
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from config import apply_common_styling, render_header, render_page_intro
+
 st.set_page_config(page_title="Weekly Flow Report", layout="wide")
+apply_common_styling()
 
 def top5_with_gx(df,provider_col="ETF Provider",gx_name="Global X Investments Canada Inc",flow_col="Weekly Flow"):
     out = df.copy()
@@ -191,6 +196,46 @@ def fund_flow_tbl(df_raw: pd.DataFrame) -> pd.DataFrame:
     return df_ff, df_low_aum
 
 
+def ytd_flow_tbl(df_raw: pd.DataFrame):
+    """Top-10 YTD inflow & outflow tables — all ETFs and AUM < 1bn."""
+    cols_keep   = ["Fund Name", "Ticker", "AUM", "YTD Flow", "Weekly Flow"]
+    million_cols = ["AUM", "YTD Flow", "Weekly Flow"]
+
+    df = df_raw[cols_keep].copy()
+    total_ytd = pd.to_numeric(df["YTD Flow"], errors="coerce").sum()
+    df["% of YTD Segment Flow"] = (
+        pd.to_numeric(df["YTD Flow"], errors="coerce") / total_ytd
+        if total_ytd != 0 else 0.0
+    )
+    perc_cols = ["% of YTD Segment Flow"]
+
+    def fmt(d):
+        d = d.copy()
+        d[million_cols] = (
+            d[million_cols]
+            .apply(pd.to_numeric, errors="coerce")
+            .apply(lambda col: col.apply(lambda x: "" if pd.isna(x) else f"{x/1e6:,.0f} M"))
+        )
+        d[perc_cols] = (
+            d[perc_cols]
+            .apply(pd.to_numeric, errors="coerce")
+            .apply(lambda s: s.apply(lambda x: "" if pd.isna(x) else f"{x*100:.1f}%"))
+        )
+        return d.fillna("")
+
+    df["_ytd_num"] = pd.to_numeric(df["YTD Flow"], errors="coerce").fillna(0)
+    df["_aum_num"] = pd.to_numeric(df["AUM"],      errors="coerce").fillna(0)
+
+    inflows_all  = fmt(df[df["_ytd_num"] > 0].sort_values("_ytd_num", ascending=False).head(10).drop(columns=["_ytd_num","_aum_num"]))
+    outflows_all = fmt(df[df["_ytd_num"] < 0].sort_values("_ytd_num", ascending=True ).head(10).drop(columns=["_ytd_num","_aum_num"]))
+
+    df_low = df[df["_aum_num"] < 1e9]
+    inflows_low  = fmt(df_low[df_low["_ytd_num"] > 0].sort_values("_ytd_num", ascending=False).head(10).drop(columns=["_ytd_num","_aum_num"]))
+    outflows_low = fmt(df_low[df_low["_ytd_num"] < 0].sort_values("_ytd_num", ascending=True ).head(10).drop(columns=["_ytd_num","_aum_num"]))
+
+    return inflows_all, outflows_all, inflows_low, outflows_low
+
+
 #"""-----------------IMPORT RAW DATA-----------------"""
 df_raw = pd.read_excel(excel_buffer, engine="openpyxl", sheet_name="Weekly Consolidate")
 df_raw = df_raw[(df_raw["Delisting Date"] == "Active") & (df_raw["Structure"] == "ETF")] #universal filter?
@@ -229,13 +274,24 @@ weekday_mon1 = td_date - timedelta(days=td_date.weekday())
 start = weekday_mon1 - timedelta(days=7)
 end   = start + timedelta(days=4)
 
-st.caption(f"{td}")
-st.header("**Global X Weekly Flows Report**")
-st.caption(f"For the week of {start.strftime('%B %d')} to {end.strftime('%B %d,%Y')}")
-st.caption("**For Internal Use Only**")
+render_header(
+    "Weekly Flow Report",
+    f"For the week of {start.strftime('%B %d')} – {end.strftime('%B %d, %Y')}  ·  {td}",
+)
+
+render_page_intro(
+    "Provider and fund-level weekly trading activity across the Canadian ETF market. "
+    "Flows are shown in millions of Canadian dollars. "
+    "Green bars indicate inflows; red bars indicate outflows. "
+    "Global X rows are highlighted in orange. "
+    "<strong>For internal use only.</strong>"
+)
 
 for title, df_seg in segments.items():
-    st.subheader(title)
+    st.markdown(
+        f'<h3 style="color:#00695C;border-bottom:2px solid #FF5722;padding-bottom:8px;">{title}</h3>',
+        unsafe_allow_html=True,
+    )
 
     prov_disp, prov_num, bar_cols = provider_flow_tbl(df_seg)
     styled = (prov_disp.style
@@ -243,25 +299,22 @@ for title, df_seg in segments.items():
               .map(highlight_gx, subset=["ETF Provider"]))
     styled = add_data_bars(styled, prov_num, bar_cols)
     styled = styled.hide(axis="index")
-    
+
     st.markdown(f'<div class="prov-table">{styled.to_html()}</div>', unsafe_allow_html=True)
-    
-    #st.markdown(styled.to_html(), unsafe_allow_html=True)
-    #st.dataframe(styled, hide_index=True, use_container_width=True)
 
     fund_disp, f_low_aum = fund_flow_tbl(df_seg)
     if "All Segments" in title:
-        st.caption("All Tickers")
+        st.caption("All Tickers — ranked by weekly flow (top 10)")
         st.dataframe(fund_disp.style.map(highlight_gx, subset=["Fund Name"]),
                      height=422, hide_index=True, use_container_width=True)
-        st.caption("")
-        st.caption("Excluding tickers with AUM > 500M")
+        st.caption("Smaller Funds — excluding tickers with AUM > $500M")
         st.dataframe(f_low_aum.style.map(highlight_gx, subset=["Fund Name"]),
                      height=422, hide_index=True, use_container_width=True)
-    else:st.dataframe(fund_disp.style.map(highlight_gx, subset=["Fund Name"]),
+    else:
+        st.dataframe(fund_disp.style.map(highlight_gx, subset=["Fund Name"]),
                      height=422, hide_index=True, use_container_width=True)
-    
-    st.markdown("---")
 
-st.caption("*Grand Total represents the full universe total; table rows display only the top 10 by weekly flow.")
+    st.markdown("<hr style='border:none;border-top:1px solid #E2E8F0;margin:24px 0;'>", unsafe_allow_html=True)
+
+st.caption("* Grand Total represents the full universe; table rows show only the top 10 by weekly flow per segment.")
 

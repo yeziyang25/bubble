@@ -14,7 +14,10 @@ from analytics_utils import (
     create_flow_momentum_chart,
     calculate_category_performance_metrics
 )
-from config import apply_common_styling, render_header, render_metric_card, format_large_number
+from config import (
+    apply_common_styling, render_header, render_metric_card, format_large_number,
+    render_page_intro, render_section_divider, render_glossary,
+)
 
 # Page config + styling
 st.set_page_config(
@@ -23,95 +26,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-st.markdown(
-    """
-    <style>
-    .stApp { 
-        background: linear-gradient(135deg, #f5f7fa 0%, #e8f4f8 100%);
-    }
-
-    .global-x-main {
-        font-size: 48px;
-        font-weight: bold;
-        color: #FF5722;
-        font-family: 'Arial', 'Helvetica', sans-serif;
-        letter-spacing: 3px;
-        margin: 0;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
-    }
-    .global-x-subtitle {
-        font-size: 18px;
-        color: #4682A9;
-        font-family: 'Arial', 'Helvetica', sans-serif;
-        margin: 5px 0 0 0;
-        font-weight: normal;
-    }
-    h1 { 
-        color: #00695C; 
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        text-align: center;
-        padding: 20px 0;
-        margin-bottom: 30px;
-    }
-    h3 {
-        color: #00695C;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        border-bottom: 2px solid #FF5722;
-        padding-bottom: 10px;
-        margin-top: 40px;
-        margin-bottom: 20px;
-    }
-    .metric-card {
-        background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        text-align: center;
-        border-left: 4px solid #FF5722;
-        transition: transform 0.2s ease;
-    }
-    .metric-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-        border-left-color: #00695C;
-    }
-    
-    .filters-container {
-        background: white;
-        padding: 25px;
-        border-radius: 15px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        margin-bottom: 30px;
-        border-top: 3px solid #FF5722;
-    }
-    /* Multiselect improvements */
-    .stMultiSelect > div > div > div {
-        border-radius: 8px;
-        border: 2px solid #BDC3C7;
-        transition: border-color 0.3s ease;
-    }
-    .stMultiSelect > div > div > div:focus-within {
-        border-color: #FF5722;
-        box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.1);
-    }
-    /* Selectbox improvements */
-    .stSelectbox > div > div > div {
-        border-radius: 8px;
-        border: 2px solid #BDC3C7;
-        transition: border-color 0.3s ease;
-    }
-    .stSelectbox > div > div > div:focus-within {
-        border-color: #FF5722;
-        box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.1);
-    }
-    /* Checkbox styling */
-    .stCheckbox > label > div {
-        color: #00695C;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+apply_common_styling()
 
 # Constants
 SCALE_DIVISOR = 1e6
@@ -252,7 +167,7 @@ def compute_13m_provider_vs_gx_series(end_ts: pd.Timestamp, provider_choice: str
     All series are optionally filtered by Category/Secondary.
     """
     months_asc = sorted([d for d in available_dates_desc if d <= end_ts])
-    last_13 = months_asc[-13:] if len(months_asc) >= 13 else months_asc
+    last_13 = months_asc[-15:] if len(months_asc) >= 15 else months_asc
 
     if provider_choice and re.search(r"(global x|betapro)", provider_choice, flags=re.I):
         provider_choice = None
@@ -437,29 +352,51 @@ def make_provider_vs_gx_flow_with_aum_line(
     )
     return fig
 
-# Filters (date + provider)
-selected_date = st.selectbox(
-    "📅 Analysis Date",
-    options=available_date_strs,
-    index=0,
-    help="Select the date for your analysis"
+# ─── Page header ─────────────────────────────────────────────────────────────
+render_header(
+    "Canadian ETF Intelligence",
+    "Monthly Flows · AUM · Market Share · Provider Analytics",
 )
+
+render_page_intro(
+    "<strong>Welcome to the Canadian ETF Dashboard.</strong> "
+    "This tool tracks fund flows, assets under management (AUM), and market dynamics "
+    "across the Canadian ETF landscape. "
+    "Select an analysis date below, then optionally narrow by provider or ETF category. "
+    "All dollar figures are in Canadian dollars unless noted."
+)
+
+render_glossary()
+
+# ─── Filters (date + provider) ───────────────────────────────────────────────
+render_section_divider("Filters")
+
+col_date, col_prov = st.columns(2)
+
+with col_date:
+    selected_date = st.selectbox(
+        "📅 Analysis Date",
+        options=available_date_strs,
+        index=0,
+        help="Month-end date for the analysis snapshot. All flow and AUM figures reflect this period."
+    )
 selected_ts = pd.to_datetime(selected_date)
 
-selected_prov = st.selectbox(
-    "🏢 ETF Provider",
-    options=provider_options,
-    index=0,
-    help="All (Industry) shows the full market. Otherwise compares that provider vs Global X."
-)
+with col_prov:
+    selected_prov = st.selectbox(
+        "🏢 ETF Provider",
+        options=provider_options,
+        index=0,
+        help="'All (Industry)' shows the full Canadian ETF market. Selecting a specific provider compares it against Global X on the charts below."
+    )
 provider_choice = None if selected_prov == "All (Industry)" else selected_prov
 
-# Main dataframe for selected date
+# ─── Main dataframe for selected date ────────────────────────────────────────
 df = process_cached(selected_date)
 df = ensure_provider_col(df)
 df = ensure_classification_cols(df)
 
-# NEW: Category + Secondary Category filters
+# ─── Category + Secondary Category filters ────────────────────────────────────
 CAT_COL = "Category"
 SEC_COL = "Secondary Category"
 
@@ -472,10 +409,10 @@ with cfa:
         "📂 Category",
         options=cat_options,
         default=[],
-        help="Leave blank to include all categories."
+        help="Broad ETF category (e.g. Equity, Fixed Income). Leave blank to include all."
     )
 
-# Secondary options depend on Category selection (but still allow Secondary-only filtering)
+# Secondary options narrow automatically when a Category is chosen
 if SEC_COL in df.columns:
     if selected_categories and CAT_COL in df.columns:
         sec_options = sorted(
@@ -489,15 +426,15 @@ else:
 
 with cfb:
     selected_secondary = st.multiselect(
-        "🧩 Secondary Category",
+        "🧩 Sub-Category",
         options=sec_options,
         default=[],
-        help="You can filter by Secondary Category without selecting Category."
+        help="Narrow by sub-segment (e.g. US Equity, Investment Grade). Can be used independently of Category."
     )
 
 # Apply universe filters to df for all tables / summaries below
 df = apply_universe_filters(df, selected_categories, selected_secondary, CAT_COL, SEC_COL)
-st.caption(f"Universe: {len(df):,} ETFs after filters")
+st.caption(f"Showing **{len(df):,}** ETFs · {selected_date}")
 
 # Provider vs GX chart (filtered universe)
 labels_cmp, scope_flow_mn, gx_flow_mn, scope_aum_bn, scope_name = compute_13m_provider_vs_gx_series(
@@ -514,7 +451,15 @@ fig_cmp = make_provider_vs_gx_flow_with_aum_line(
     scope_aum_bn,
     scope_name=scope_name
 )
-st.subheader("Provider vs Global X — Monthly Flows (Bars) + AUM (Line)")
+
+# ─── Flow Trend Charts ────────────────────────────────────────────────────────
+render_section_divider("Flow Trends — 13-Month History")
+st.caption(
+    "Monthly net flows over the past 13 months. Bars show net capital inflows/outflows; "
+    "the line tracks total AUM. Positive bars = more money flowing in than out."
+)
+
+st.subheader("Provider vs Global X — Monthly Flows & AUM")
 st.plotly_chart(fig_cmp, use_container_width=True)
 
 # Industry trailing 13M bar (filtered universe)
@@ -526,10 +471,10 @@ labels_12m, totals_12m_mn = compute_trailing_13m_market_flows(
 fig_12m = make_single_series_bar(
     labels_12m,
     totals_12m_mn,
-    "Past 13 Months — Total ETF Net Flow (Adjusted)",
+    "Past 13 Months — Total Industry ETF Net Flow",
     MONTHLY_COLOR_INFLOW
 )
-st.subheader("Past 13 Months — Total ETF Net Flow")
+st.subheader("Total Industry — Past 13 Months Net Flow")
 st.plotly_chart(fig_12m, use_container_width=True)
 
 # Global X trailing 13M bar (filtered universe)
@@ -541,10 +486,10 @@ labels_12m_gx, totals_12m_mn_gx = compute_trailing_13m_gx_flows(
 fig_12m_GX = make_single_series_bar(
     labels_12m_gx,
     totals_12m_mn_gx,
-    "Global X — Past 13 Months — Total ETF Net Flow (Adjusted)",
+    "Global X / BetaPro — Past 13 Months Net Flow",
     MONTHLY_COLOR_OUTFLOW
 )
-st.subheader("Global X — Past 13 Months — Total ETF Net Flow")
+st.subheader("Global X / BetaPro — Past 13 Months Net Flow")
 st.plotly_chart(fig_12m_GX, use_container_width=True)
 
 # If filters lead to empty df on selected date, avoid table errors
@@ -558,15 +503,21 @@ category_flow_summary_sorted = category_flow_summary.sort_values(by="Monthly Flo
 top10_inflow = category_flow_summary_sorted.tail(10)
 top10_outflow = category_flow_summary_sorted.head(10)
 
+render_section_divider("Category Flow Breakdown")
+st.caption(
+    "Which ETF categories attracted or lost the most money this month? "
+    "Blue bars show the current month's flow; yellow bars show year-to-date totals."
+)
+
 col1, col2 = st.columns(2)
 with col1:
-    st.subheader("Top 5 Category Inflow")
-    fig_inflow = make_bar_chart(top10_inflow, "Top 5 Category Inflow", MONTHLY_COLOR_INFLOW, YTD_COLOR)
+    st.subheader("Top Categories — Inflows")
+    fig_inflow = make_bar_chart(top10_inflow, "Top Categories — Inflows", MONTHLY_COLOR_INFLOW, YTD_COLOR)
     st.plotly_chart(fig_inflow, use_container_width=True)
 
 with col2:
-    st.subheader("Top 5 Category Outflow")
-    fig_outflow = make_bar_chart(top10_outflow, "Top 5 Category Outflow", MONTHLY_COLOR_OUTFLOW, YTD_COLOR)
+    st.subheader("Top Categories — Outflows")
+    fig_outflow = make_bar_chart(top10_outflow, "Top Categories — Outflows", MONTHLY_COLOR_OUTFLOW, YTD_COLOR)
     st.plotly_chart(fig_outflow, use_container_width=True)
 
 
@@ -574,27 +525,43 @@ with col2:
 
 
 
-# ========== NEW: MARKET INTELLIGENCE SECTION ==========
-st.markdown("---")
-st.markdown("## 📊 Market Intelligence & Analytics")
+render_section_divider("Market Intelligence & Analytics")
+st.caption(
+    "Concentration, market share, and flow momentum metrics give a bird's-eye view of competitive dynamics "
+    "in the Canadian ETF industry. Hover over any chart for detailed values."
+)
 
 # Row 1: Market Concentration and Provider Market Share
 col_conc, col_provider = st.columns(2)
 
 with col_conc:
-    st.markdown("### Market Concentration Analysis")
+    st.markdown("### Market Concentration (HHI)")
     concentration_data = calculate_market_concentration(df, top_n=10)
-    
+
     if concentration_data:
-        # Display HHI metric
         hhi = concentration_data['hhi']
-        hhi_interpretation = "Highly Concentrated" if hhi > 2500 else "Moderately Concentrated" if hhi > 1500 else "Competitive"
-        
-    
-        # Concentration chart
+        hhi_interpretation = (
+            "Highly Concentrated" if hhi > 2500
+            else "Moderately Concentrated" if hhi > 1500
+            else "Competitive"
+        )
+        hhi_color = "#DC2626" if hhi > 2500 else "#F59E0B" if hhi > 1500 else "#16A34A"
+        st.markdown(
+            render_metric_card(
+                "HHI Score",
+                f"{hhi:,.0f}",
+                delta=hhi_interpretation,
+                delta_color="normal",
+            ),
+            unsafe_allow_html=True,
+        )
+        st.caption(
+            "HHI < 1,500 = competitive market  ·  1,500–2,500 = moderate  ·  > 2,500 = highly concentrated"
+        )
+
         fig_conc = create_concentration_chart(concentration_data)
         if fig_conc:
-            st.plotly_chart(fig_conc, use_container_width=True,height=500)
+            st.plotly_chart(fig_conc, use_container_width=True, height=500)
     else:
         st.info("Insufficient data for concentration analysis")
 
@@ -662,7 +629,12 @@ with col_momentum:
         st.info("Insufficient data for momentum analysis")
 
 
-st.markdown("---")
+render_section_divider("Top ETF Tables — Monthly & YTD Flows")
+st.caption(
+    "Ranked tables of ETFs by net flow for the selected month and year-to-date. "
+    "The sparkline column shows the 12-month flow trend (normalized per fund). "
+    "Funds marked 🔶 are Global X or BetaPro products."
+)
 # Build Past Flows dictionary per ETF (for sparklines)
 flow_long = flow_df_raw.melt(
     id_vars="ETF",
@@ -832,7 +804,7 @@ for dfx in (top15_inflow, top15_outflow, top15_inflow_small_aum, top15_outflow_s
     if "Past Flows" in dfx.columns:
         dfx.drop(columns=["Past Flows"], inplace=True)
 
-st.subheader("Top ETF Inflows & Outflows")
+st.markdown("#### Monthly Inflows & Outflows — All ETFs")
 c1, c2 = st.columns(2)
 with c1:
     render_table_with_spark(
@@ -855,6 +827,59 @@ with c4:
     render_table_with_spark(
         top15_outflow_small_aum[["Fund Name", "Ticker", "Flow", "AUM", "Flow Trend (12M)"]],
         "Top 15 Outflow (AUM < $1B)"
+    )
+
+# YTD Inflow / Outflow tables
+st.markdown("#### Year-to-Date Inflows & Outflows — All ETFs")
+
+top15_ytd_inflow = (
+    df.nlargest(15, "YTD Flow")[["Fund Name", "ETF", "YTD Flow", "AUM", "Past Flows"]]
+    .rename(columns={"ETF": "Ticker", "YTD Flow": "Flow"})
+)
+top15_ytd_outflow = (
+    df.nsmallest(15, "YTD Flow")[["Fund Name", "ETF", "YTD Flow", "AUM", "Past Flows"]]
+    .rename(columns={"ETF": "Ticker", "YTD Flow": "Flow"})
+)
+top15_ytd_inflow_small_aum = (
+    df_small_aum.nlargest(15, "YTD Flow")[["Fund Name", "ETF", "YTD Flow", "AUM", "Past Flows"]]
+    .rename(columns={"ETF": "Ticker", "YTD Flow": "Flow"})
+)
+top15_ytd_outflow_small_aum = (
+    df_small_aum.nsmallest(15, "YTD Flow")[["Fund Name", "ETF", "YTD Flow", "AUM", "Past Flows"]]
+    .rename(columns={"ETF": "Ticker", "YTD Flow": "Flow"})
+)
+
+top15_ytd_inflow = add_trend_and_scale(top15_ytd_inflow)
+top15_ytd_outflow = add_trend_and_scale(top15_ytd_outflow)
+top15_ytd_inflow_small_aum = add_trend_and_scale(top15_ytd_inflow_small_aum)
+top15_ytd_outflow_small_aum = add_trend_and_scale(top15_ytd_outflow_small_aum)
+
+for dfx in (top15_ytd_inflow, top15_ytd_outflow, top15_ytd_inflow_small_aum, top15_ytd_outflow_small_aum):
+    if "Past Flows" in dfx.columns:
+        dfx.drop(columns=["Past Flows"], inplace=True)
+
+cy1, cy2 = st.columns(2)
+with cy1:
+    render_table_with_spark(
+        top15_ytd_inflow[["Fund Name", "Ticker", "Flow", "AUM", "Flow Trend (12M)"]],
+        "Top 15 YTD Inflow"
+    )
+with cy2:
+    render_table_with_spark(
+        top15_ytd_outflow[["Fund Name", "Ticker", "Flow", "AUM", "Flow Trend (12M)"]],
+        "Top 15 YTD Outflow"
+    )
+
+cy3, cy4 = st.columns(2)
+with cy3:
+    render_table_with_spark(
+        top15_ytd_inflow_small_aum[["Fund Name", "Ticker", "Flow", "AUM", "Flow Trend (12M)"]],
+        "Top 15 YTD Inflow (AUM < $1B)"
+    )
+with cy4:
+    render_table_with_spark(
+        top15_ytd_outflow_small_aum[["Fund Name", "Ticker", "Flow", "AUM", "Flow Trend (12M)"]],
+        "Top 15 YTD Outflow (AUM < $1B)"
     )
 
 # Global X tables + YTD new launches (all still filtered by Category/Secondary)
@@ -909,7 +934,9 @@ with c6:
         "Top 15 Monthly Inflow — Global X / BetaPro"
     )
 
-st.subheader(f"Top 20 YTD Inflow — Launched in {selected_ts.year}")
+render_section_divider(f"New Launches — {selected_ts.year}")
+st.caption(f"ETFs that began trading in {selected_ts.year}, ranked by year-to-date net inflows.")
+st.markdown(f"#### Top 20 YTD Inflows — Launched in {selected_ts.year}")
 render_table_with_spark(
     top20_ytd_new[["Fund Name", "Ticker", "Flow", "AUM", "Flow Trend (12M)"]],
     f"Top 20 YTD Inflow — Launched in {selected_ts.year}"

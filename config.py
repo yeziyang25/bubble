@@ -6,12 +6,13 @@ Contains shared styling, constants, and utility functions
 import streamlit as st
 
 # Brand Colors
-PRIMARY_COLOR = "#FF5722"      # Orange
+PRIMARY_COLOR = "#FF5722"      # Orange  (Global X brand)
 SECONDARY_COLOR = "#00695C"    # Teal
-ACCENT_COLOR = "#4682A9"       # Blue
-SUCCESS_COLOR = "#4CAF50"      # Green
-WARNING_COLOR = "#FFC000"      # Yellow
-DANGER_COLOR = "#ED7D31"       # Red
+ACCENT_COLOR = "#4682A9"       # Steel Blue
+SUCCESS_COLOR = "#16A34A"      # Green
+WARNING_COLOR = "#F59E0B"      # Amber
+DANGER_COLOR = "#DC2626"       # Red
+DARK_COLOR = "#1B2A3B"         # Dark Navy
 
 # Data Source
 ONEDRIVE_URL = "https://globalxcanada-my.sharepoint.com/:x:/g/personal/eden_ye_globalx_ca/Eas53aR4lPlDn0ZlNHgX4ZABPDpH1Ign2mH4NGcJ0Hb80w?download=1"
@@ -19,38 +20,216 @@ ONEDRIVE_URL = "https://globalxcanada-my.sharepoint.com/:x:/g/personal/eden_ye_g
 # Common CSS Styling
 COMMON_CSS = """
     <style>
-    .stApp { 
-        background: linear-gradient(135deg, #f5f7fa 0%, #e8f4f8 100%);
+    /* ─── Base ────────────────────────────────────────────────────── */
+    .stApp {
+        background: #F8FAFD;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
-    
-    /* Header Styling */
+
+    /* ─── Dashboard Header ────────────────────────────────────────── */
     .dashboard-header {
-        background: linear-gradient(135deg, #FF5722 0%, #E64A19 100%);
-        padding: 20px 30px;
-        border-radius: 15px;
-        margin-bottom: 30px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        background: linear-gradient(135deg, #1B2A3B 0%, #2C3E50 60%, #FF5722 100%);
+        padding: 22px 32px;
+        border-radius: 12px;
+        margin-bottom: 24px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
     }
-    
+
     .dashboard-title {
-        font-size: 42px;
-        font-weight: bold;
-        color: white;
+        font-size: 38px;
+        font-weight: 700;
+        color: #FFFFFF;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        letter-spacing: 2px;
+        letter-spacing: 1.5px;
         margin: 0;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        text-shadow: 1px 1px 3px rgba(0,0,0,0.25);
     }
-    
+
     .dashboard-subtitle {
-        font-size: 16px;
-        color: #FFE0B2;
+        font-size: 15px;
+        color: #CBD5E1;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        margin: 5px 0 0 0;
-        font-weight: normal;
+        margin: 0;
+        font-weight: 400;
+        letter-spacing: 0.5px;
     }
-    
-    /* Navigation */
+
+    /* ─── Typography ──────────────────────────────────────────────── */
+    h1 {
+        color: #1B2A3B;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        text-align: center;
+        padding: 16px 0;
+        margin-bottom: 24px;
+    }
+
+    h2 {
+        color: #00695C;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        border-bottom: 2px solid #FF5722;
+        padding-bottom: 8px;
+        margin-top: 28px;
+    }
+
+    h3 {
+        color: #00695C;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        border-bottom: 1px solid #E2E8F0;
+        padding-bottom: 8px;
+        margin-top: 32px;
+        margin-bottom: 16px;
+    }
+
+    /* ─── Metric Cards ────────────────────────────────────────────── */
+    .metric-card {
+        background: #FFFFFF;
+        padding: 20px 18px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        text-align: center;
+        border-top: 3px solid #FF5722;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        height: 100%;
+    }
+
+    .metric-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+    }
+
+    .metric-card h4 {
+        color: #64748B;
+        font-size: 12px;
+        margin: 0 0 8px 0;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        border: none;
+    }
+
+    .metric-card h2 {
+        color: #1B2A3B;
+        font-size: 28px;
+        margin: 0;
+        font-weight: 700;
+        border: none;
+        padding: 0;
+    }
+
+    .metric-card .delta {
+        font-size: 13px;
+        margin-top: 6px;
+        font-weight: 500;
+    }
+
+    .delta-positive { color: #16A34A; }
+    .delta-negative { color: #DC2626; }
+
+    /* ─── Page Introduction Box ───────────────────────────────────── */
+    .page-intro {
+        background: #EFF6FF;
+        border-left: 4px solid #4682A9;
+        padding: 14px 18px;
+        border-radius: 0 8px 8px 0;
+        margin-bottom: 20px;
+        font-size: 14px;
+        color: #334155;
+        line-height: 1.7;
+    }
+
+    /* ─── Section Divider with Label ─────────────────────────────── */
+    .section-divider {
+        display: flex;
+        align-items: center;
+        margin: 32px 0 18px 0;
+        gap: 12px;
+    }
+
+    .section-divider-label {
+        color: #00695C;
+        font-size: 18px;
+        font-weight: 700;
+        font-family: 'Segoe UI', sans-serif;
+        white-space: nowrap;
+        background: #F8FAFD;
+        padding: 0 8px;
+    }
+
+    .section-divider-line {
+        flex: 1;
+        height: 2px;
+        background: linear-gradient(90deg, #FF5722 0%, #E2E8F0 100%);
+        border-radius: 2px;
+    }
+
+    /* ─── Filter Container ────────────────────────────────────────── */
+    .filters-container {
+        background: #FFFFFF;
+        padding: 22px 24px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        margin-bottom: 24px;
+        border-top: 3px solid #FF5722;
+    }
+
+    /* ─── Form Controls ───────────────────────────────────────────── */
+    .stMultiSelect > div > div > div {
+        border-radius: 8px;
+        border: 1.5px solid #CBD5E1;
+        transition: border-color 0.2s ease;
+    }
+
+    .stMultiSelect > div > div > div:focus-within {
+        border-color: #FF5722;
+        box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.1);
+    }
+
+    .stSelectbox > div > div > div {
+        border-radius: 8px;
+        border: 1.5px solid #CBD5E1;
+        transition: border-color 0.2s ease;
+    }
+
+    .stSelectbox > div > div > div:focus-within {
+        border-color: #FF5722;
+        box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.1);
+    }
+
+    /* ─── Status / Info Boxes ─────────────────────────────────────── */
+    .info-box {
+        background: #EFF6FF;
+        border-left: 4px solid #4682A9;
+        padding: 14px 16px;
+        border-radius: 0 8px 8px 0;
+        margin: 10px 0;
+        font-size: 14px;
+    }
+
+    .warning-box {
+        background: #FFFBEB;
+        border-left: 4px solid #F59E0B;
+        padding: 14px 16px;
+        border-radius: 0 8px 8px 0;
+        margin: 10px 0;
+        font-size: 14px;
+    }
+
+    .success-box {
+        background: #F0FDF4;
+        border-left: 4px solid #16A34A;
+        padding: 14px 16px;
+        border-radius: 0 8px 8px 0;
+        margin: 10px 0;
+        font-size: 14px;
+    }
+
+    /* ─── Tables ──────────────────────────────────────────────────── */
+    .dataframe { font-size: 13px; }
+
+    /* ─── Navigation links ────────────────────────────────────────── */
     .nav-link {
         display: inline-block;
         padding: 10px 20px;
@@ -60,163 +239,25 @@ COMMON_CSS = """
         border-radius: 8px;
         text-decoration: none;
         font-weight: 600;
-        transition: all 0.3s ease;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.08);
     }
-    
+
     .nav-link:hover {
         background: #FF5722;
         color: white;
         transform: translateY(-2px);
-        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.15);
     }
 
-    h1 { 
-        color: #00695C; 
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        text-align: center;
-        padding: 20px 0;
-        margin-bottom: 30px;
-    }
-    
-    h2 {
-        color: #00695C;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        border-bottom: 3px solid #FF5722;
-        padding-bottom: 10px;
-        margin-top: 30px;
-    }
-    
-    h3 {
-        color: #00695C;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        border-bottom: 2px solid #FF5722;
-        padding-bottom: 10px;
-        margin-top: 40px;
-        margin-bottom: 20px;
-    }
-    
-    /* Metric Cards */
-    .metric-card {
-        background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        text-align: center;
-        border-left: 4px solid #FF5722;
-        transition: transform 0.2s ease;
-        height: 100%;
-    }
-    
-    .metric-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-        border-left-color: #00695C;
-    }
-    
-    .metric-card h4 {
-        color: #666;
-        font-size: 14px;
-        margin: 0 0 10px 0;
-        font-weight: 600;
-        border: none;
-    }
-    
-    .metric-card h2 {
-        color: #00695C;
-        font-size: 32px;
-        margin: 0;
-        font-weight: bold;
-        border: none;
-    }
-    
-    .metric-card .delta {
-        font-size: 14px;
-        margin-top: 8px;
-    }
-    
-    .delta-positive {
-        color: #4CAF50;
-    }
-    
-    .delta-negative {
-        color: #f44336;
-    }
-    
-    /* Filter Container */
-    .filters-container {
-        background: white;
-        padding: 25px;
-        border-radius: 15px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        margin-bottom: 30px;
-        border-top: 3px solid #FF5722;
-    }
-    
-    /* Form Controls */
-    .stMultiSelect > div > div > div {
-        border-radius: 8px;
-        border: 2px solid #BDC3C7;
-        transition: border-color 0.3s ease;
-    }
-    
-    .stMultiSelect > div > div > div:focus-within {
-        border-color: #FF5722;
-        box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.1);
-    }
-    
-    .stSelectbox > div > div > div {
-        border-radius: 8px;
-        border: 2px solid #BDC3C7;
-        transition: border-color 0.3s ease;
-    }
-    
-    .stSelectbox > div > div > div:focus-within {
-        border-color: #FF5722;
-        box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.1);
-    }
-    
-    .stCheckbox > label > div {
-        color: #00695C;
-    }
-    
-    /* Info Boxes */
-    .info-box {
-        background: #E3F2FD;
-        border-left: 4px solid #2196F3;
-        padding: 15px;
-        border-radius: 8px;
-        margin: 10px 0;
-    }
-    
-    .warning-box {
-        background: #FFF3E0;
-        border-left: 4px solid #FF9800;
-        padding: 15px;
-        border-radius: 8px;
-        margin: 10px 0;
-    }
-    
-    .success-box {
-        background: #E8F5E9;
-        border-left: 4px solid #4CAF50;
-        padding: 15px;
-        border-radius: 8px;
-        margin: 10px 0;
-    }
-    
-    /* Tables */
-    .dataframe {
-        font-size: 14px;
-    }
-    
-    /* Footer */
+    /* ─── Footer ──────────────────────────────────────────────────── */
     .dashboard-footer {
         text-align: center;
         padding: 20px;
         margin-top: 50px;
-        color: #666;
-        border-top: 1px solid #ddd;
+        color: #94A3B8;
+        border-top: 1px solid #E2E8F0;
+        font-size: 13px;
     }
     </style>
 """
@@ -278,3 +319,67 @@ def format_percentage(num, decimals=2):
         return f"{float(num):.{decimals}f}%"
     except (ValueError, TypeError):
         return "N/A"
+
+
+def render_page_intro(text: str):
+    """Render a styled introductory paragraph at the top of a page."""
+    st.markdown(f'<div class="page-intro">{text}</div>', unsafe_allow_html=True)
+
+
+def render_section_divider(label: str):
+    """Render a styled section divider with an orange-accented line."""
+    st.markdown(
+        f"""
+        <div class="section-divider">
+            <span class="section-divider-label">{label}</span>
+            <div class="section-divider-line"></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_glossary():
+    """Expandable glossary of common ETF and analytics terms."""
+    with st.expander("📖  Key Terms & Definitions — click to expand", expanded=False):
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("""
+**AUM** — *Assets Under Management.*
+The total market value of all assets held by an ETF. Larger AUM generally signals investor trust and liquidity.
+
+---
+
+**Monthly Flow** — *Net capital movement for the selected month.*
+Positive = more money flowing in than out (inflows). Negative = more money leaving (outflows / redemptions).
+
+---
+
+**YTD Flow** — *Year-to-Date net flow.*
+Cumulative net inflows or outflows since January 1 of the selected year.
+
+---
+
+**TTM** — *Trailing Twelve Months.*
+A rolling 12-month window ending on the selected date, used to smooth out short-term noise.
+""")
+        with col2:
+            st.markdown("""
+**HHI** — *Herfindahl-Hirschman Index.*
+Measures market concentration. Calculated as the sum of squared market-share percentages.
+Below 1,500 = competitive · 1,500–2,500 = moderate · Above 2,500 = highly concentrated.
+
+---
+
+**ETF** — *Exchange-Traded Fund.*
+A basket of securities (stocks, bonds, etc.) that trades on a stock exchange like a single share.
+
+---
+
+**Provider** — The asset management company that issues and manages the ETF (e.g., Global X, iShares, Vanguard).
+
+---
+
+**Net Flow** — Inflows minus outflows. Positive = investor demand growing; negative = net redemptions.
+""")
+        st.caption("Terms calculated using monthly data. Flows are in Canadian dollars unless noted.")
